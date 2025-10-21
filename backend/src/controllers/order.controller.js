@@ -214,7 +214,9 @@ export const createOrder = async (req, res) => {
       client_id,
       client_name,
       order_date,
+      order_day,
       work_type_id,
+      numero_rollo,
       description,
       items,
       payment_type_id,
@@ -236,14 +238,14 @@ export const createOrder = async (req, res) => {
     // Crear pedido
     const orderResult = await client.query(
       `INSERT INTO orders (
-        receipt_number, client_id, client_name, order_date, work_type_id,
-        description, subtotal, total, payment_type_id, bank_id, 
+        receipt_number, client_id, client_name, order_date, order_day, work_type_id,
+        numero_rollo, description, subtotal, total, payment_type_id, bank_id, 
         payment_status, qr_code, notes, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *`,
       [
-        receiptNumber, client_id, client_name, order_date || new Date(),
-        work_type_id, description, subtotal, total, payment_type_id,
+        receiptNumber, client_id, client_name, order_date || new Date(), order_day,
+        work_type_id, numero_rollo, description, subtotal, total, payment_type_id,
         bank_id, payment_status, qrCode, notes, req.user.id
       ]
     );
@@ -326,7 +328,9 @@ export const updateOrder = async (req, res) => {
     const {
       client_id,
       client_name,
+      order_day,
       work_type_id,
+      numero_rollo,
       description,
       items,
       payment_type_id,
@@ -347,19 +351,21 @@ export const updateOrder = async (req, res) => {
       `UPDATE orders
        SET client_id = COALESCE($1, client_id),
            client_name = COALESCE($2, client_name),
-           work_type_id = COALESCE($3, work_type_id),
-           description = COALESCE($4, description),
-           subtotal = COALESCE($5, subtotal),
-           total = COALESCE($6, total),
-           payment_type_id = COALESCE($7, payment_type_id),
-           bank_id = COALESCE($8, bank_id),
-           payment_status = COALESCE($9, payment_status),
-           notes = COALESCE($10, notes)
-       WHERE id = $11
+           order_day = COALESCE($3, order_day),
+           work_type_id = COALESCE($4, work_type_id),
+           numero_rollo = COALESCE($5, numero_rollo),
+           description = COALESCE($6, description),
+           subtotal = COALESCE($7, subtotal),
+           total = COALESCE($8, total),
+           payment_type_id = COALESCE($9, payment_type_id),
+           bank_id = COALESCE($10, bank_id),
+           payment_status = COALESCE($11, payment_status),
+           notes = COALESCE($12, notes)
+       WHERE id = $13
        RETURNING *`,
       [
-        client_id, client_name, work_type_id, description, subtotal, total,
-        payment_type_id, bank_id, payment_status, notes, id
+        client_id, client_name, order_day, work_type_id, numero_rollo, description, 
+        subtotal, total, payment_type_id, bank_id, payment_status, notes, id
       ]
     );
 

@@ -98,7 +98,9 @@ CREATE TABLE orders (
   client_id INTEGER REFERENCES clients(id),
   client_name VARCHAR(100) NOT NULL,
   order_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  order_day VARCHAR(20),
   work_type_id INTEGER REFERENCES work_types(id),
+  numero_rollo INTEGER CHECK (numero_rollo >= 1 AND numero_rollo <= 16),
   description TEXT,
   
   -- Totales

@@ -16,11 +16,18 @@ const OrderForm = () => {
   const [clients, setClients] = useState([]);
   const [isNewClient, setIsNewClient] = useState(false);
 
+  // Calcular día inicial
+  const initialDate = new Date();
+  const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  const initialDay = days[initialDate.getDay()];
+
   const [formData, setFormData] = useState({
     client_name: '',
     client_id: null,
-    order_date: new Date().toISOString().split('T')[0],
+    order_date: initialDate.toISOString().split('T')[0],
+    order_day: initialDay,
     work_type_id: '',
+    numero_rollo: '',
     description: '',
     payment_type_id: '',
     bank_id: '',
@@ -89,7 +96,9 @@ const OrderForm = () => {
         client_name: order.client_name,
         client_id: order.client_id,
         order_date: new Date(order.order_date).toISOString().split('T')[0],
+        order_day: order.order_day || '',
         work_type_id: order.work_type_id || '',
+        numero_rollo: order.numero_rollo || '',
         description: order.description || '',
         payment_type_id: order.payment_type_id || '',
         bank_id: order.bank_id || '',
@@ -106,7 +115,16 @@ const OrderForm = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Si cambia la fecha, calcular el día automáticamente
+    if (name === 'order_date') {
+      const date = new Date(value + 'T00:00:00');
+      const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      const dayName = days[date.getDay()];
+      setFormData(prev => ({ ...prev, order_date: value, order_day: dayName }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleClientChange = (e) => {
@@ -315,6 +333,21 @@ const OrderForm = () => {
                 className="input"
               />
             </div>
+
+            <div>
+              <label htmlFor="order_day" className="label">
+                Día
+              </label>
+              <input
+                type="text"
+                id="order_day"
+                name="order_day"
+                value={formData.order_day}
+                className="input bg-gray-50"
+                readOnly
+                placeholder="Se calculará automáticamente"
+              />
+            </div>
           </div>
         </div>
 
@@ -338,6 +371,26 @@ const OrderForm = () => {
                 {workTypes.map(type => (
                   <option key={type.id} value={type.id}>
                     {type.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="numero_rollo" className="label">
+                Número de Rollo
+              </label>
+              <select
+                id="numero_rollo"
+                name="numero_rollo"
+                value={formData.numero_rollo}
+                onChange={handleInputChange}
+                className="input"
+              >
+                <option value="">Seleccionar...</option>
+                {[...Array(16)].map((_, i) => (
+                  <option key={i + 1} value={i + 1}>
+                    Rollo {i + 1}
                   </option>
                 ))}
               </select>
