@@ -13,6 +13,8 @@ const OrderForm = () => {
   const [workTypes, setWorkTypes] = useState([]);
   const [paymentTypes, setPaymentTypes] = useState([]);
   const [banks, setBanks] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [isNewClient, setIsNewClient] = useState(false);
 
   const [formData, setFormData] = useState({
     client_name: '',
@@ -54,15 +56,17 @@ const OrderForm = () => {
 
   const fetchCatalogs = async () => {
     try {
-      const [workTypesRes, paymentTypesRes, banksRes] = await Promise.all([
+      const [workTypesRes, paymentTypesRes, banksRes, clientsRes] = await Promise.all([
         api.get('/payments/work-types'),
         api.get('/payments/types'),
-        api.get('/payments/banks')
+        api.get('/payments/banks'),
+        api.get('/clients')
       ]);
 
       setWorkTypes(workTypesRes.data);
       setPaymentTypes(paymentTypesRes.data);
       setBanks(banksRes.data);
+      setClients(clientsRes.data.clients || []);
     } catch (error) {
       console.error('Error al cargar catálogos:', error);
       toast.error('Error al cargar los datos del formulario');
@@ -73,6 +77,13 @@ const OrderForm = () => {
     try {
       const response = await api.get(`/orders/${id}`);
       const order = response.data;
+      
+      // Si el pedido tiene un client_id, no es un nuevo cliente
+      if (order.client_id) {
+        setIsNewClient(false);
+      } else {
+        setIsNewClient(true);
+      }
       
       setFormData({
         client_name: order.client_name,
@@ -96,6 +107,28 @@ const OrderForm = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleClientChange = (e) => {
+    const value = e.target.value;
+    
+    if (value === 'new') {
+      setIsNewClient(true);
+      setFormData(prev => ({ ...prev, client_id: null, client_name: '' }));
+    } else if (value) {
+      const selectedClient = clients.find(c => c.id === parseInt(value));
+      if (selectedClient) {
+        setIsNewClient(false);
+        setFormData(prev => ({ 
+          ...prev, 
+          client_id: selectedClient.id, 
+          client_name: selectedClient.name 
+        }));
+      }
+    } else {
+      setIsNewClient(false);
+      setFormData(prev => ({ ...prev, client_id: null, client_name: '' }));
+    }
   };
 
   const handleItemChange = (index, field, value) => {
@@ -231,19 +264,43 @@ const OrderForm = () => {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Información del Cliente</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="client_name" className="label">
-                Nombre del Cliente *
+              <label htmlFor="client_select" className="label">
+                Seleccionar Cliente *
               </label>
-              <input
-                type="text"
-                id="client_name"
-                name="client_name"
-                value={formData.client_name}
-                onChange={handleInputChange}
+              <select
+                id="client_select"
+                value={isNewClient ? 'new' : (formData.client_id || '')}
+                onChange={handleClientChange}
                 className="input"
-                required
-              />
+                required={!isNewClient}
+              >
+                <option value="">-- Seleccionar cliente --</option>
+                {clients.map(client => (
+                  <option key={client.id} value={client.id}>
+                    {client.name} {client.phone ? `(${client.phone})` : ''}
+                  </option>
+                ))}
+                <option value="new">+ Nuevo Cliente</option>
+              </select>
             </div>
+
+            {isNewClient && (
+              <div>
+                <label htmlFor="client_name" className="label">
+                  Nombre del Nuevo Cliente *
+                </label>
+                <input
+                  type="text"
+                  id="client_name"
+                  name="client_name"
+                  value={formData.client_name}
+                  onChange={handleInputChange}
+                  className="input"
+                  placeholder="Ingresa el nombre completo"
+                  required
+                />
+              </div>
+            )}
 
             <div>
               <label htmlFor="order_date" className="label">
