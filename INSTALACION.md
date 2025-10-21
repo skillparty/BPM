@@ -122,13 +122,13 @@ npm install
 npm run dev
 ```
 
-El frontend estará disponible en: `http://localhost:5173`
+El frontend estará disponible en: `http://localhost:5089`
 
 ## Paso 4: Acceder al Sistema
 
 ### 4.1 Desde la Computadora Local
 
-Abre tu navegador y ve a: `http://localhost:5173`
+Abre tu navegador y ve a: `http://localhost:5089`
 
 ### 4.2 Desde Otra Computadora en la Red Local
 
@@ -151,10 +151,10 @@ Abre tu navegador y ve a: `http://localhost:5173`
    
    En cualquier navegador de la red local, ve a:
    ```
-   http://[IP_DE_TU_COMPUTADORA]:5173
+   http://[IP_DE_TU_COMPUTADORA]:5089
    ```
    
-   Ejemplo: `http://192.168.1.100:5173`
+   Ejemplo: `http://192.168.1.100:5089`
 
 ### 4.3 Credenciales Iniciales
 
@@ -172,7 +172,7 @@ Contraseña: admin123
 1. Abre "Firewall de Windows Defender"
 2. Clic en "Configuración avanzada"
 3. Reglas de entrada → Nueva regla
-4. Puerto → TCP → Puertos específicos: `5099, 5173`
+4. Puerto → TCP → Puertos específicos: `5099, 5089`
 5. Permitir la conexión
 6. Aplicar a todos los perfiles
 7. Nombre: "BPM Sistema"
@@ -190,7 +190,7 @@ sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp /usr/local/bin
 
 ```bash
 sudo ufw allow 5099/tcp
-sudo ufw allow 5173/tcp
+sudo ufw allow 5089/tcp
 sudo ufw reload
 ```
 
@@ -230,7 +230,7 @@ npm install
 
 ### Puerto ya en uso
 
-Si el puerto 5099 o 5173 están ocupados:
+Si el puerto 5099 o 5089 están ocupados:
 
 1. Cambia el puerto en `.env` (backend) o `vite.config.js` (frontend)
 2. O cierra la aplicación que está usando el puerto

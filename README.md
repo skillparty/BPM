@@ -59,7 +59,7 @@ npm install
 npm run dev
 ```
 
-El frontend correrá en `http://localhost:5173`
+El frontend correrá en `http://localhost:5089`
 
 ## Usuarios del Sistema
 

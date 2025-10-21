@@ -47,10 +47,10 @@ npm install
 npm run dev
 ```
 
-✅ Frontend corriendo en: http://localhost:5173
+✅ Frontend corriendo en: http://localhost:5089
 
 ### 5. Acceder al Sistema
-- Abre tu navegador en: http://localhost:5173
+- Abre tu navegador en: http://localhost:5089
 - Usuario: `admin`
 - Contraseña: `admin123`
 
@@ -72,9 +72,9 @@ ifconfig | grep inet
 ```
 
 ### Acceder desde otra PC:
-Abre el navegador en: `http://TU_IP:5173`
+Abre el navegador en: `http://TU_IP:5089`
 
-Ejemplo: `http://192.168.1.100:5173`
+Ejemplo: `http://192.168.1.100:5089`
 
 ---
 
@@ -151,7 +151,7 @@ BPM/
 ```bash
 # Cambia el puerto en:
 # Backend: backend/.env → PORT=5100
-# Frontend: frontend/vite.config.js → port: 5174
+# Frontend: frontend/vite.config.js → port: 5090
 ```
 
 ### Error: "Module not found"

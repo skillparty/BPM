@@ -218,59 +218,75 @@ const OrderDetail = () => {
       <div className="card">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Items del Pedido</h3>
         
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  #
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Descripción
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Cantidad
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Precio Unitario
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Total
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {order.items?.map((item) => (
-                <tr key={item.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {item.item_number}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {item.description}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                    {item.quantity}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                    Bs. {parseFloat(item.unit_price).toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
-                    Bs. {parseFloat(item.total).toFixed(2)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot className="bg-gray-50">
-              <tr>
-                <td colSpan="4" className="px-6 py-4 text-right font-semibold text-gray-900">
-                  Total:
-                </td>
-                <td className="px-6 py-4 text-right font-bold text-xl text-gray-900">
-                  Bs. {order.total.toFixed(2)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+        <div className="space-y-4">
+          {order.items?.map((item) => (
+            <div key={item.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="font-semibold text-gray-900">Item #{item.item_number}</h4>
+                <span className="text-lg font-bold text-gray-900">
+                  Bs. {parseFloat(item.total).toFixed(2)}
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {/* Impresión */}
+                {parseFloat(item.impresion_metraje) > 0 && (
+                  <div className="bg-white p-3 rounded border-l-4 border-blue-500">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-medium text-gray-900">Impresión</span>
+                      <span className="font-semibold text-blue-600">
+                        Bs. {parseFloat(item.impresion_subtotal).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {parseFloat(item.impresion_metraje).toFixed(2)} metros × Bs. {parseFloat(item.impresion_costo).toFixed(2)}
+                    </div>
+                  </div>
+                )}
+
+                {/* Planchado */}
+                {parseFloat(item.planchado_cantidad) > 0 && (
+                  <div className="bg-white p-3 rounded border-l-4 border-green-500">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-medium text-gray-900">Planchado</span>
+                      <span className="font-semibold text-green-600">
+                        Bs. {parseFloat(item.planchado_subtotal).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {parseFloat(item.planchado_cantidad)} unidades × Bs. {parseFloat(item.planchado_costo).toFixed(2)}
+                    </div>
+                  </div>
+                )}
+
+                {/* Insignias Texturizadas */}
+                {parseFloat(item.insignia_cantidad) > 0 && (
+                  <div className="bg-white p-3 rounded border-l-4 border-purple-500">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-medium text-gray-900">Insignias Texturizadas</span>
+                      <span className="font-semibold text-purple-600">
+                        Bs. {parseFloat(item.insignia_subtotal).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {parseFloat(item.insignia_cantidad)} unidades × Bs. {parseFloat(item.insignia_costo).toFixed(2)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 pt-4 border-t-2 border-gray-300">
+          <div className="flex justify-end">
+            <div className="text-right">
+              <p className="text-sm text-gray-600 mb-1">TOTAL DEL PEDIDO</p>
+              <p className="text-3xl font-bold text-gray-900">
+                Bs. {order.total.toFixed(2)}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 

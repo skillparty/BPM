@@ -250,20 +250,30 @@ export const createOrder = async (req, res) => {
 
     const order = orderResult.rows[0];
 
-    // Insertar items
+    // Insertar items con los 3 módulos
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       await client.query(
         `INSERT INTO order_items (
-          order_id, item_number, description, quantity, unit_price, total
-        ) VALUES ($1, $2, $3, $4, $5, $6)`,
+          order_id, item_number, 
+          impresion_metraje, impresion_costo, impresion_subtotal,
+          planchado_cantidad, planchado_costo, planchado_subtotal,
+          insignia_cantidad, insignia_costo, insignia_subtotal,
+          total
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
         [
           order.id,
           i + 1,
-          item.description,
-          item.quantity,
-          item.unit_price,
-          item.total
+          item.useImpresion ? (item.impresion_metraje || 0) : 0,
+          item.useImpresion ? (item.impresion_costo || 0) : 0,
+          item.useImpresion ? (item.impresion_subtotal || 0) : 0,
+          item.usePlanchado ? (item.planchado_cantidad || 0) : 0,
+          item.usePlanchado ? (item.planchado_costo || 0) : 0,
+          item.usePlanchado ? (item.planchado_subtotal || 0) : 0,
+          item.useInsignia ? (item.insignia_cantidad || 0) : 0,
+          item.useInsignia ? (item.insignia_costo || 0) : 0,
+          item.useInsignia ? (item.insignia_subtotal || 0) : 0,
+          item.total || 0
         ]
       );
     }
@@ -363,14 +373,31 @@ export const updateOrder = async (req, res) => {
       // Eliminar items existentes
       await client.query('DELETE FROM order_items WHERE order_id = $1', [id]);
 
-      // Insertar nuevos items
+      // Insertar nuevos items con los 3 módulos
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         await client.query(
           `INSERT INTO order_items (
-            order_id, item_number, description, quantity, unit_price, total
-          ) VALUES ($1, $2, $3, $4, $5, $6)`,
-          [id, i + 1, item.description, item.quantity, item.unit_price, item.total]
+            order_id, item_number, 
+            impresion_metraje, impresion_costo, impresion_subtotal,
+            planchado_cantidad, planchado_costo, planchado_subtotal,
+            insignia_cantidad, insignia_costo, insignia_subtotal,
+            total
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          [
+            id,
+            i + 1,
+            item.useImpresion ? (item.impresion_metraje || 0) : 0,
+            item.useImpresion ? (item.impresion_costo || 0) : 0,
+            item.useImpresion ? (item.impresion_subtotal || 0) : 0,
+            item.usePlanchado ? (item.planchado_cantidad || 0) : 0,
+            item.usePlanchado ? (item.planchado_costo || 0) : 0,
+            item.usePlanchado ? (item.planchado_subtotal || 0) : 0,
+            item.useInsignia ? (item.insignia_cantidad || 0) : 0,
+            item.useInsignia ? (item.insignia_costo || 0) : 0,
+            item.useInsignia ? (item.insignia_subtotal || 0) : 0,
+            item.total || 0
+          ]
         );
       }
     }

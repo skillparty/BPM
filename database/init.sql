@@ -128,10 +128,25 @@ CREATE TABLE order_items (
   id SERIAL PRIMARY KEY,
   order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
   item_number INTEGER NOT NULL,
-  description VARCHAR(255) NOT NULL,
-  quantity DECIMAL(10, 2) NOT NULL,
-  unit_price DECIMAL(10, 2) NOT NULL,
-  total DECIMAL(10, 2) NOT NULL,
+  
+  -- Módulo 1: Impresión
+  impresion_metraje DECIMAL(10, 2) DEFAULT 0,
+  impresion_costo DECIMAL(10, 2) DEFAULT 0,
+  impresion_subtotal DECIMAL(10, 2) DEFAULT 0,
+  
+  -- Módulo 2: Planchado
+  planchado_cantidad DECIMAL(10, 2) DEFAULT 0,
+  planchado_costo DECIMAL(10, 2) DEFAULT 0,
+  planchado_subtotal DECIMAL(10, 2) DEFAULT 0,
+  
+  -- Módulo 3: Insignias Texturizadas
+  insignia_cantidad DECIMAL(10, 2) DEFAULT 0,
+  insignia_costo DECIMAL(10, 2) DEFAULT 0,
+  insignia_subtotal DECIMAL(10, 2) DEFAULT 0,
+  
+  -- Total del item (suma de los 3 subtotales)
+  total DECIMAL(10, 2) NOT NULL DEFAULT 0,
+  
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -255,6 +270,31 @@ FROM orders
 WHERE status != 'cancelado'
 GROUP BY DATE_TRUNC('month', order_date)
 ORDER BY month DESC;
+
+-- ============================================
+-- TRIGGERS: Cálculo automático de items
+-- ============================================
+
+-- Trigger para calcular automáticamente los subtotales y el total de cada item
+CREATE OR REPLACE FUNCTION calculate_item_totals()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Calcular subtotales
+  NEW.impresion_subtotal := COALESCE(NEW.impresion_metraje, 0) * COALESCE(NEW.impresion_costo, 0);
+  NEW.planchado_subtotal := COALESCE(NEW.planchado_cantidad, 0) * COALESCE(NEW.planchado_costo, 0);
+  NEW.insignia_subtotal := COALESCE(NEW.insignia_cantidad, 0) * COALESCE(NEW.insignia_costo, 0);
+  
+  -- Calcular total del item
+  NEW.total := NEW.impresion_subtotal + NEW.planchado_subtotal + NEW.insignia_subtotal;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_calculate_item_totals
+  BEFORE INSERT OR UPDATE ON order_items
+  FOR EACH ROW
+  EXECUTE FUNCTION calculate_item_totals();
 
 COMMENT ON TABLE users IS 'Usuarios del sistema (super_admin y colaboradores)';
 COMMENT ON TABLE clients IS 'Clientes de la empresa';

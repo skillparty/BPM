@@ -24,7 +24,25 @@ const OrderForm = () => {
     bank_id: '',
     payment_status: 'pendiente',
     notes: '',
-    items: [{ description: '', quantity: 1, unit_price: 0, total: 0 }]
+    items: [{
+      // Módulo Impresión
+      useImpresion: false,
+      impresion_metraje: 0,
+      impresion_costo: 0,
+      impresion_subtotal: 0,
+      // Módulo Planchado
+      usePlanchado: false,
+      planchado_cantidad: 0,
+      planchado_costo: 0,
+      planchado_subtotal: 0,
+      // Módulo Insignias
+      useInsignia: false,
+      insignia_cantidad: 0,
+      insignia_costo: 0,
+      insignia_subtotal: 0,
+      // Total
+      total: 0
+    }]
   });
 
   useEffect(() => {
@@ -84,12 +102,31 @@ const OrderForm = () => {
     const newItems = [...formData.items];
     newItems[index][field] = value;
 
-    // Calcular total del item
-    if (field === 'quantity' || field === 'unit_price') {
-      const quantity = parseFloat(newItems[index].quantity) || 0;
-      const unitPrice = parseFloat(newItems[index].unit_price) || 0;
-      newItems[index].total = quantity * unitPrice;
+    // Calcular subtotales según el campo modificado
+    if (field === 'impresion_metraje' || field === 'impresion_costo') {
+      const metraje = parseFloat(newItems[index].impresion_metraje) || 0;
+      const costo = parseFloat(newItems[index].impresion_costo) || 0;
+      newItems[index].impresion_subtotal = metraje * costo;
     }
+    
+    if (field === 'planchado_cantidad' || field === 'planchado_costo') {
+      const cantidad = parseFloat(newItems[index].planchado_cantidad) || 0;
+      const costo = parseFloat(newItems[index].planchado_costo) || 0;
+      newItems[index].planchado_subtotal = cantidad * costo;
+    }
+    
+    if (field === 'insignia_cantidad' || field === 'insignia_costo') {
+      const cantidad = parseFloat(newItems[index].insignia_cantidad) || 0;
+      const costo = parseFloat(newItems[index].insignia_costo) || 0;
+      newItems[index].insignia_subtotal = cantidad * costo;
+    }
+
+    // Calcular total del item (suma de los 3 subtotales)
+    const impresionSubtotal = newItems[index].useImpresion ? (parseFloat(newItems[index].impresion_subtotal) || 0) : 0;
+    const planchadoSubtotal = newItems[index].usePlanchado ? (parseFloat(newItems[index].planchado_subtotal) || 0) : 0;
+    const insigniaSubtotal = newItems[index].useInsignia ? (parseFloat(newItems[index].insignia_subtotal) || 0) : 0;
+    
+    newItems[index].total = impresionSubtotal + planchadoSubtotal + insigniaSubtotal;
 
     setFormData(prev => ({ ...prev, items: newItems }));
   };
@@ -97,7 +134,21 @@ const OrderForm = () => {
   const addItem = () => {
     setFormData(prev => ({
       ...prev,
-      items: [...prev.items, { description: '', quantity: 1, unit_price: 0, total: 0 }]
+      items: [...prev.items, {
+        useImpresion: false,
+        impresion_metraje: 0,
+        impresion_costo: 0,
+        impresion_subtotal: 0,
+        usePlanchado: false,
+        planchado_cantidad: 0,
+        planchado_costo: 0,
+        planchado_subtotal: 0,
+        useInsignia: false,
+        insignia_cantidad: 0,
+        insignia_costo: 0,
+        insignia_subtotal: 0,
+        total: 0
+      }]
     }));
   };
 
@@ -129,8 +180,8 @@ const OrderForm = () => {
       return;
     }
 
-    if (formData.items.some(item => !item.description)) {
-      toast.error('Todos los items deben tener descripción');
+    if (formData.items.some(item => !item.useImpresion && !item.usePlanchado && !item.useInsignia)) {
+      toast.error('Cada item debe tener al menos un módulo seleccionado');
       return;
     }
 
@@ -266,57 +317,183 @@ const OrderForm = () => {
             </button>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-6">
             {formData.items.map((item, index) => (
-              <div key={index} className="flex gap-3 items-start">
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    placeholder="Descripción del item"
-                    value={item.description}
-                    onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                    className="input"
-                    required
-                  />
+              <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="font-semibold text-gray-900">Item #{index + 1}</h4>
+                  <button
+                    type="button"
+                    onClick={() => removeItem(index)}
+                    className="p-2 text-red-600 hover:bg-red-100 rounded-lg"
+                    disabled={formData.items.length === 1}
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
                 </div>
-                <div className="w-24">
-                  <input
-                    type="number"
-                    placeholder="Cant."
-                    value={item.quantity}
-                    onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                    className="input"
-                    min="0"
-                    step="0.01"
-                  />
+
+                {/* Módulo Impresión */}
+                <div className="mb-4">
+                  <label className="flex items-center space-x-2 mb-2">
+                    <input
+                      type="checkbox"
+                      checked={item.useImpresion}
+                      onChange={(e) => handleItemChange(index, 'useImpresion', e.target.checked)}
+                      className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                    />
+                    <span className="font-medium text-gray-900">Impresión</span>
+                  </label>
+                  
+                  {item.useImpresion && (
+                    <div className="grid grid-cols-3 gap-3 ml-6">
+                      <div>
+                        <label className="text-xs text-gray-600">Metraje</label>
+                        <input
+                          type="number"
+                          value={item.impresion_metraje}
+                          onChange={(e) => handleItemChange(index, 'impresion_metraje', e.target.value)}
+                          className="input"
+                          placeholder="0.00"
+                          min="0"
+                          step="0.01"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600">Costo/metro (Bs)</label>
+                        <input
+                          type="number"
+                          value={item.impresion_costo}
+                          onChange={(e) => handleItemChange(index, 'impresion_costo', e.target.value)}
+                          className="input"
+                          placeholder="0.00"
+                          min="0"
+                          step="0.01"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600">Subtotal</label>
+                        <input
+                          type="number"
+                          value={item.impresion_subtotal.toFixed(2)}
+                          className="input bg-white"
+                          readOnly
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="w-32">
-                  <input
-                    type="number"
-                    placeholder="Precio"
-                    value={item.unit_price}
-                    onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)}
-                    className="input"
-                    min="0"
-                    step="0.01"
-                  />
+
+                {/* Módulo Planchado */}
+                <div className="mb-4">
+                  <label className="flex items-center space-x-2 mb-2">
+                    <input
+                      type="checkbox"
+                      checked={item.usePlanchado}
+                      onChange={(e) => handleItemChange(index, 'usePlanchado', e.target.checked)}
+                      className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                    />
+                    <span className="font-medium text-gray-900">Planchado</span>
+                  </label>
+                  
+                  {item.usePlanchado && (
+                    <div className="grid grid-cols-3 gap-3 ml-6">
+                      <div>
+                        <label className="text-xs text-gray-600">Cantidad</label>
+                        <input
+                          type="number"
+                          value={item.planchado_cantidad}
+                          onChange={(e) => handleItemChange(index, 'planchado_cantidad', e.target.value)}
+                          className="input"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600">Costo/unidad (Bs)</label>
+                        <input
+                          type="number"
+                          value={item.planchado_costo}
+                          onChange={(e) => handleItemChange(index, 'planchado_costo', e.target.value)}
+                          className="input"
+                          placeholder="0.00"
+                          min="0"
+                          step="0.01"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600">Subtotal</label>
+                        <input
+                          type="number"
+                          value={item.planchado_subtotal.toFixed(2)}
+                          className="input bg-white"
+                          readOnly
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="w-32">
-                  <input
-                    type="number"
-                    value={item.total.toFixed(2)}
-                    className="input bg-gray-50"
-                    readOnly
-                  />
+
+                {/* Módulo Insignias Texturizadas */}
+                <div className="mb-4">
+                  <label className="flex items-center space-x-2 mb-2">
+                    <input
+                      type="checkbox"
+                      checked={item.useInsignia}
+                      onChange={(e) => handleItemChange(index, 'useInsignia', e.target.checked)}
+                      className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                    />
+                    <span className="font-medium text-gray-900">Insignias Texturizadas</span>
+                  </label>
+                  
+                  {item.useInsignia && (
+                    <div className="grid grid-cols-3 gap-3 ml-6">
+                      <div>
+                        <label className="text-xs text-gray-600">Cantidad</label>
+                        <input
+                          type="number"
+                          value={item.insignia_cantidad}
+                          onChange={(e) => handleItemChange(index, 'insignia_cantidad', e.target.value)}
+                          className="input"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600">Costo/unidad (Bs)</label>
+                        <input
+                          type="number"
+                          value={item.insignia_costo}
+                          onChange={(e) => handleItemChange(index, 'insignia_costo', e.target.value)}
+                          className="input"
+                          placeholder="0.00"
+                          min="0"
+                          step="0.01"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600">Subtotal</label>
+                        <input
+                          type="number"
+                          value={item.insignia_subtotal.toFixed(2)}
+                          className="input bg-white"
+                          readOnly
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => removeItem(index)}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                  disabled={formData.items.length === 1}
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
+
+                {/* Total del Item */}
+                <div className="flex justify-end pt-3 border-t border-gray-300">
+                  <div className="text-right">
+                    <span className="text-sm text-gray-600">Total Item:</span>
+                    <span className="ml-2 text-lg font-bold text-gray-900">
+                      Bs. {item.total.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
