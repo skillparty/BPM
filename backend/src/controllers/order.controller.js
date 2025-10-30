@@ -211,7 +211,7 @@ export const createOrder = async (req, res) => {
     await client.query('BEGIN');
 
     const {
-      client_id,
+      client_phone,
       client_name,
       order_date,
       order_day,
@@ -238,13 +238,13 @@ export const createOrder = async (req, res) => {
     // Crear pedido
     const orderResult = await client.query(
       `INSERT INTO orders (
-        receipt_number, client_id, client_name, order_date, order_day, work_type_id,
+        receipt_number, client_phone, client_name, order_date, order_day, work_type_id,
         numero_rollo, description, subtotal, total, payment_type_id, bank_id, 
         payment_status, qr_code, notes, created_by
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *`,
       [
-        receiptNumber, client_id, client_name, order_date || new Date(), order_day,
+        receiptNumber, client_phone, client_name, order_date || new Date(), order_day,
         work_type_id, numero_rollo, description, subtotal, total, payment_type_id,
         bank_id, payment_status, qrCode, notes, req.user.id
       ]
@@ -326,7 +326,7 @@ export const updateOrder = async (req, res) => {
 
     const { id } = req.params;
     const {
-      client_id,
+      client_phone,
       client_name,
       order_day,
       work_type_id,
@@ -349,7 +349,7 @@ export const updateOrder = async (req, res) => {
     // Actualizar pedido
     const updateResult = await client.query(
       `UPDATE orders
-       SET client_id = COALESCE($1, client_id),
+       SET client_phone = COALESCE($1, client_phone),
            client_name = COALESCE($2, client_name),
            order_day = COALESCE($3, order_day),
            work_type_id = COALESCE($4, work_type_id),
@@ -364,7 +364,7 @@ export const updateOrder = async (req, res) => {
        WHERE id = $13
        RETURNING *`,
       [
-        client_id, client_name, order_day, work_type_id, numero_rollo, description, 
+        client_phone, client_name, order_day, work_type_id, numero_rollo, description, 
         subtotal, total, payment_type_id, bank_id, payment_status, notes, id
       ]
     );

@@ -23,7 +23,7 @@ const OrderForm = () => {
 
   const [formData, setFormData] = useState({
     client_name: '',
-    client_id: null,
+    client_phone: null,
     order_date: initialDate.toISOString().split('T')[0],
     order_day: initialDay,
     work_type_id: '',
@@ -85,8 +85,8 @@ const OrderForm = () => {
       const response = await api.get(`/orders/${id}`);
       const order = response.data;
       
-      // Si el pedido tiene un client_id, no es un nuevo cliente
-      if (order.client_id) {
+      // Si el pedido tiene un client_phone, no es un nuevo cliente
+      if (order.client_phone) {
         setIsNewClient(false);
       } else {
         setIsNewClient(true);
@@ -94,7 +94,7 @@ const OrderForm = () => {
       
       setFormData({
         client_name: order.client_name,
-        client_id: order.client_id,
+        client_phone: order.client_phone,
         order_date: new Date(order.order_date).toISOString().split('T')[0],
         order_day: order.order_day || '',
         work_type_id: order.work_type_id || '',
@@ -132,20 +132,20 @@ const OrderForm = () => {
     
     if (value === 'new') {
       setIsNewClient(true);
-      setFormData(prev => ({ ...prev, client_id: null, client_name: '' }));
+      setFormData(prev => ({ ...prev, client_phone: null, client_name: '' }));
     } else if (value) {
-      const selectedClient = clients.find(c => c.id === parseInt(value));
+      const selectedClient = clients.find(c => c.phone === value);
       if (selectedClient) {
         setIsNewClient(false);
         setFormData(prev => ({ 
           ...prev, 
-          client_id: selectedClient.id, 
+          client_phone: selectedClient.phone, 
           client_name: selectedClient.name 
         }));
       }
     } else {
       setIsNewClient(false);
-      setFormData(prev => ({ ...prev, client_id: null, client_name: '' }));
+      setFormData(prev => ({ ...prev, client_phone: null, client_name: '' }));
     }
   };
 
@@ -287,15 +287,15 @@ const OrderForm = () => {
               </label>
               <select
                 id="client_select"
-                value={isNewClient ? 'new' : (formData.client_id || '')}
+                value={isNewClient ? 'new' : (formData.client_phone || '')}
                 onChange={handleClientChange}
                 className="input"
                 required={!isNewClient}
               >
                 <option value="">-- Seleccionar cliente --</option>
                 {clients.map(client => (
-                  <option key={client.id} value={client.id}>
-                    {client.name} {client.phone ? `(${client.phone})` : ''}
+                  <option key={client.phone} value={client.phone}>
+                    {client.name} ({client.phone})
                   </option>
                 ))}
                 <option value="new">+ Nuevo Cliente</option>
