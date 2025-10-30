@@ -14,18 +14,22 @@ router.get('/', clientController.getAllClients);
 // Buscar clientes
 router.get('/search', clientController.searchClients);
 
-// Obtener cliente por ID
-router.get('/:id', clientController.getClientById);
+// Obtener cliente por teléfono
+router.get('/:phone', clientController.getClientById);
 
 // Crear cliente
 router.post('/', [
-  body('name').notEmpty().withMessage('Nombre requerido')
+  body('phone').notEmpty().withMessage('Teléfono requerido'),
+  body('name').notEmpty().withMessage('Nombre requerido'),
+  body('tipo_cliente').optional().isIn(['B2B', 'B2C']).withMessage('Tipo de cliente debe ser B2B o B2C')
 ], clientController.createClient);
 
 // Actualizar cliente
-router.put('/:id', clientController.updateClient);
+router.put('/:phone', [
+  body('tipo_cliente').optional().isIn(['B2B', 'B2C']).withMessage('Tipo de cliente debe ser B2B o B2C')
+], clientController.updateClient);
 
 // Eliminar cliente
-router.delete('/:id', clientController.deleteClient);
+router.delete('/:phone', clientController.deleteClient);
 
 export default router;
