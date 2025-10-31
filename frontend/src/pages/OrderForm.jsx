@@ -15,6 +15,16 @@ const OrderForm = () => {
   const [banks, setBanks] = useState([]);
   const [clients, setClients] = useState([]);
   const [isNewClient, setIsNewClient] = useState(false);
+  const [rollos, setRollos] = useState([]);
+  const [rolloSeleccionado, setRolloSeleccionado] = useState(null);
+  const [isSublimacion, setIsSublimacion] = useState(false);
+  const [metrajeTotalRequerido, setMetrajeTotalRequerido] = useState(0);
+  const [alertaMetraje, setAlertaMetraje] = useState(null);
+  const [modulosHabilitados, setModulosHabilitados] = useState({
+    impresion: true,
+    planchado: true,
+    insignia: true
+  });
 
   // Calcular día inicial
   const initialDate = new Date();
@@ -63,17 +73,19 @@ const OrderForm = () => {
 
   const fetchCatalogs = async () => {
     try {
-      const [workTypesRes, paymentTypesRes, banksRes, clientsRes] = await Promise.all([
+      const [workTypesRes, paymentTypesRes, banksRes, clientsRes, rollosRes] = await Promise.all([
         api.get('/payments/work-types'),
         api.get('/payments/types'),
         api.get('/payments/banks'),
-        api.get('/clients')
+        api.get('/clients'),
+        api.get('/rollos')
       ]);
 
       setWorkTypes(workTypesRes.data);
       setPaymentTypes(paymentTypesRes.data);
       setBanks(banksRes.data);
       setClients(clientsRes.data.clients || []);
+      setRollos(rollosRes.data || []);
     } catch (error) {
       console.error('Error al cargar catálogos:', error);
       toast.error('Error al cargar los datos del formulario');
@@ -113,6 +125,53 @@ const OrderForm = () => {
     }
   };
 
+  // Calcular metraje total requerido
+  useEffect(() => {
+    if (isSublimacion) {
+      const total = formData.items.reduce((sum, item) => {
+        if (item.useImpresion) {
+          return sum + (parseFloat(item.impresion_metraje) || 0);
+        }
+        return sum;
+      }, 0);
+      setMetrajeTotalRequerido(total);
+      verificarDisponibilidadRollo(formData.numero_rollo, total);
+    }
+  }, [formData.items, isSublimacion, formData.numero_rollo]);
+
+  const verificarDisponibilidadRollo = async (numeroRollo, metrajRequerido) => {
+    if (!numeroRollo || !isSublimacion || metrajRequerido === 0) {
+      setAlertaMetraje(null);
+      return;
+    }
+
+    try {
+      const response = await api.post('/rollos/verificar-disponibilidad', {
+        numero_rollo: parseInt(numeroRollo),
+        metraje_requerido: metrajRequerido
+      });
+
+      if (!response.data.disponible) {
+        setAlertaMetraje({
+          tipo: 'error',
+          mensaje: response.data.mensaje
+        });
+      } else if (response.data.diferencia < 10) {
+        setAlertaMetraje({
+          tipo: 'warning',
+          mensaje: `⚠️ Advertencia: Solo quedarán ${response.data.diferencia.toFixed(2)}m disponibles en el rollo después de este pedido`
+        });
+      } else {
+        setAlertaMetraje({
+          tipo: 'success',
+          mensaje: `✅ Rollo ${numeroRollo} tiene suficiente metraje (${response.data.metraje_disponible}m disponibles)`
+        });
+      }
+    } catch (error) {
+      console.error('Error al verificar disponibilidad:', error);
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     
@@ -122,6 +181,66 @@ const OrderForm = () => {
       const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
       const dayName = days[date.getDay()];
       setFormData(prev => ({ ...prev, order_date: value, order_day: dayName }));
+    } else if (name === 'work_type_id') {
+      // Verificar el tipo de trabajo y configurar módulos habilitados
+      const selectedWorkType = workTypes.find(wt => wt.id === parseInt(value));
+      
+      if (selectedWorkType) {
+        const workTypeName = selectedWorkType.name.toUpperCase();
+        const workTypeCode = selectedWorkType.code;
+        
+        // Verificar si es sublimación para control de rollos
+        const esSublim = workTypeCode === '2' || workTypeName === 'SUBLIM';
+        setIsSublimacion(esSublim);
+        
+        // Determinar qué módulos están habilitados según el tipo de trabajo
+        let nuevosModulos = { impresion: true, planchado: true, insignia: true };
+        
+        // DTF (1), SUBLIM (2), DTF+PL (4) → Solo Impresión y Planchado
+        if (['DTF', 'SUBLIM', 'DTF+PL', 'SUB+PL'].includes(workTypeName) || 
+            ['1', '2', '4', '5'].includes(workTypeCode)) {
+          nuevosModulos = { impresion: true, planchado: true, insignia: false };
+        }
+        // INSIG-T (6), INS+PL (7) → Solo Insignias y Planchado
+        else if (['INSIG-T', 'INS+PL'].includes(workTypeName) || 
+                 ['6', '7'].includes(workTypeCode)) {
+          nuevosModulos = { impresion: false, planchado: true, insignia: true };
+        }
+        
+        setModulosHabilitados(nuevosModulos);
+        
+        // Limpiar items que no correspondan al tipo de trabajo
+        const itemsActualizados = formData.items.map(item => ({
+          ...item,
+          // Deshabilitar impresión si no está permitida
+          useImpresion: nuevosModulos.impresion ? item.useImpresion : false,
+          impresion_metraje: nuevosModulos.impresion ? item.impresion_metraje : 0,
+          impresion_costo: nuevosModulos.impresion ? item.impresion_costo : 0,
+          impresion_subtotal: nuevosModulos.impresion ? item.impresion_subtotal : 0,
+          // Deshabilitar planchado si no está permitido
+          usePlanchado: nuevosModulos.planchado ? item.usePlanchado : false,
+          planchado_cantidad: nuevosModulos.planchado ? item.planchado_cantidad : 0,
+          planchado_costo: nuevosModulos.planchado ? item.planchado_costo : 0,
+          planchado_subtotal: nuevosModulos.planchado ? item.planchado_subtotal : 0,
+          // Deshabilitar insignias si no están permitidas
+          useInsignia: nuevosModulos.insignia ? item.useInsignia : false,
+          insignia_cantidad: nuevosModulos.insignia ? item.insignia_cantidad : 0,
+          insignia_costo: nuevosModulos.insignia ? item.insignia_costo : 0,
+          insignia_subtotal: nuevosModulos.insignia ? item.insignia_subtotal : 0
+        }));
+        
+        setFormData(prev => ({ ...prev, [name]: value, items: itemsActualizados }));
+      } else {
+        setFormData(prev => ({ ...prev, [name]: value }));
+      }
+    } else if (name === 'numero_rollo') {
+      setFormData(prev => ({ ...prev, [name]: value }));
+      if (value) {
+        const rollo = rollos.find(r => r.numero_rollo === parseInt(value));
+        setRolloSeleccionado(rollo);
+      } else {
+        setRolloSeleccionado(null);
+      }
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -186,6 +305,7 @@ const OrderForm = () => {
     setFormData(prev => ({
       ...prev,
       items: [...prev.items, {
+        // Solo habilitar módulos permitidos por el tipo de trabajo
         useImpresion: false,
         impresion_metraje: 0,
         impresion_costo: 0,
@@ -231,21 +351,78 @@ const OrderForm = () => {
       return;
     }
 
-    if (formData.items.some(item => !item.useImpresion && !item.usePlanchado && !item.useInsignia)) {
+    // Validar que cada item tenga al menos un módulo habilitado seleccionado
+    const itemsInvalidos = formData.items.some(item => {
+      const tieneModuloSeleccionado = 
+        (modulosHabilitados.impresion && item.useImpresion) ||
+        (modulosHabilitados.planchado && item.usePlanchado) ||
+        (modulosHabilitados.insignia && item.useInsignia);
+      return !tieneModuloSeleccionado;
+    });
+
+    if (itemsInvalidos) {
       toast.error('Cada item debe tener al menos un módulo seleccionado');
       return;
+    }
+
+    // Validación especial para sublimación con metraje
+    if (isSublimacion && metrajeTotalRequerido > 0) {
+      if (!formData.numero_rollo) {
+        toast.error('Debes seleccionar un rollo para trabajos de sublimación');
+        return;
+      }
+
+      // Verificar disponibilidad una última vez antes de crear
+      if (alertaMetraje && alertaMetraje.tipo === 'error') {
+        toast.error('No hay suficiente metraje en el rollo seleccionado. Por favor, cambia de rollo.');
+        return;
+      }
+
+      // Confirmar si el rollo quedará con poco metraje
+      if (alertaMetraje && alertaMetraje.tipo === 'warning') {
+        const confirmar = window.confirm(
+          `${alertaMetraje.mensaje}\n\n¿Deseas continuar con este pedido?`
+        );
+        if (!confirmar) {
+          return;
+        }
+      }
     }
 
     setLoading(true);
 
     try {
+      let orderResponse;
+      
       if (isEdit) {
-        await api.put(`/orders/${id}`, formData);
+        orderResponse = await api.put(`/orders/${id}`, formData);
         toast.success('Pedido actualizado exitosamente');
       } else {
-        await api.post('/orders', formData);
-        toast.success('Pedido creado exitosamente');
+        orderResponse = await api.post('/orders', formData);
+        
+        // Si es sublimación y hay metraje, descontar del rollo
+        if (isSublimacion && metrajeTotalRequerido > 0 && formData.numero_rollo) {
+          try {
+            await api.post('/rollos/descontar', {
+              numero_rollo: parseInt(formData.numero_rollo),
+              metraje: metrajeTotalRequerido,
+              order_id: orderResponse.data.order.id,
+              notas: `Pedido ${orderResponse.data.order.receipt_number} - ${formData.client_name}`
+            });
+            
+            toast.success(
+              `Pedido creado exitosamente. ${metrajeTotalRequerido.toFixed(2)}m descontados del Rollo ${formData.numero_rollo}`,
+              { duration: 4000 }
+            );
+          } catch (rolloError) {
+            console.error('Error al descontar metraje:', rolloError);
+            toast.error('Pedido creado pero hubo un error al descontar el metraje del rollo');
+          }
+        } else {
+          toast.success('Pedido creado exitosamente');
+        }
       }
+      
       navigate('/orders');
     } catch (error) {
       console.error('Error al guardar pedido:', error);
@@ -374,11 +551,35 @@ const OrderForm = () => {
                   </option>
                 ))}
               </select>
+              
+              {/* Indicador de módulos habilitados */}
+              {formData.work_type_id && (
+                <div className="mt-2 p-2 bg-gray-50 border border-gray-200 rounded-lg">
+                  <p className="text-xs font-medium text-gray-700 mb-1">Módulos disponibles:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {modulosHabilitados.impresion && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        ✓ Impresión
+                      </span>
+                    )}
+                    {modulosHabilitados.planchado && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        ✓ Planchado
+                      </span>
+                    )}
+                    {modulosHabilitados.insignia && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        ✓ Insignias
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
               <label htmlFor="numero_rollo" className="label">
-                Número de Rollo
+                Número de Rollo {isSublimacion && <span className="text-primary-600">(Control de Metraje)</span>}
               </label>
               <select
                 id="numero_rollo"
@@ -388,12 +589,51 @@ const OrderForm = () => {
                 className="input"
               >
                 <option value="">Seleccionar...</option>
-                {[...Array(16)].map((_, i) => (
-                  <option key={i + 1} value={i + 1}>
-                    Rollo {i + 1}
+                {rollos.filter(r => r.is_active).map((rollo) => (
+                  <option key={rollo.numero_rollo} value={rollo.numero_rollo}>
+                    Rollo {rollo.numero_rollo} {isSublimacion && `(${rollo.metraje_disponible}m disponibles)`}
                   </option>
                 ))}
               </select>
+              
+              {/* Información del rollo seleccionado */}
+              {isSublimacion && rolloSeleccionado && (
+                <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="text-sm space-y-1">
+                    <div className="flex justify-between">
+                      <span className="font-medium text-blue-900">Rollo #{rolloSeleccionado.numero_rollo}</span>
+                      <span className={`font-bold ${
+                        rolloSeleccionado.metraje_disponible < 20 ? 'text-red-600' :
+                        rolloSeleccionado.metraje_disponible < 50 ? 'text-yellow-600' :
+                        'text-green-600'
+                      }`}>
+                        {rolloSeleccionado.metraje_disponible}m disponibles
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-blue-700">
+                      <span>Metraje usado:</span>
+                      <span>{rolloSeleccionado.metraje_usado}m de {rolloSeleccionado.metraje_total}m</span>
+                    </div>
+                    {metrajeTotalRequerido > 0 && (
+                      <div className="flex justify-between text-blue-700 pt-1 border-t border-blue-200">
+                        <span className="font-medium">Requerido en este pedido:</span>
+                        <span className="font-bold">{metrajeTotalRequerido.toFixed(2)}m</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* Alertas de metraje */}
+              {isSublimacion && alertaMetraje && (
+                <div className={`mt-2 p-3 rounded-lg border ${
+                  alertaMetraje.tipo === 'error' ? 'bg-red-50 border-red-300 text-red-800' :
+                  alertaMetraje.tipo === 'warning' ? 'bg-yellow-50 border-yellow-300 text-yellow-800' :
+                  'bg-green-50 border-green-300 text-green-800'
+                }`}>
+                  <p className="text-sm font-medium">{alertaMetraje.mensaje}</p>
+                </div>
+              )}
             </div>
 
             <div>
@@ -443,157 +683,163 @@ const OrderForm = () => {
                 </div>
 
                 {/* Módulo Impresión */}
-                <div className="mb-4">
-                  <label className="flex items-center space-x-2 mb-2">
-                    <input
-                      type="checkbox"
-                      checked={item.useImpresion}
-                      onChange={(e) => handleItemChange(index, 'useImpresion', e.target.checked)}
-                      className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                    />
-                    <span className="font-medium text-gray-900">Impresión</span>
-                  </label>
+                {modulosHabilitados.impresion && (
+                  <div className="mb-4">
+                    <label className="flex items-center space-x-2 mb-2">
+                      <input
+                        type="checkbox"
+                        checked={item.useImpresion}
+                        onChange={(e) => handleItemChange(index, 'useImpresion', e.target.checked)}
+                        className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                      <span className="font-medium text-gray-900">Impresión</span>
+                    </label>
                   
-                  {item.useImpresion && (
-                    <div className="grid grid-cols-3 gap-3 ml-6">
-                      <div>
-                        <label className="text-xs text-gray-600">Metraje</label>
-                        <input
-                          type="number"
-                          value={item.impresion_metraje}
-                          onChange={(e) => handleItemChange(index, 'impresion_metraje', e.target.value)}
-                          className="input"
-                          placeholder="0.00"
-                          min="0"
-                          step="0.01"
-                        />
+                    {item.useImpresion && (
+                      <div className="grid grid-cols-3 gap-3 ml-6">
+                        <div>
+                          <label className="text-xs text-gray-600">Metraje</label>
+                          <input
+                            type="number"
+                            value={item.impresion_metraje}
+                            onChange={(e) => handleItemChange(index, 'impresion_metraje', e.target.value)}
+                            className="input"
+                            placeholder="0.00"
+                            min="0"
+                            step="0.01"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-600">Costo/metro (Bs)</label>
+                          <input
+                            type="number"
+                            value={item.impresion_costo}
+                            onChange={(e) => handleItemChange(index, 'impresion_costo', e.target.value)}
+                            className="input"
+                            placeholder="0.00"
+                            min="0"
+                            step="0.01"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-600">Subtotal</label>
+                          <input
+                            type="number"
+                            value={item.impresion_subtotal.toFixed(2)}
+                            className="input bg-white"
+                            readOnly
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="text-xs text-gray-600">Costo/metro (Bs)</label>
-                        <input
-                          type="number"
-                          value={item.impresion_costo}
-                          onChange={(e) => handleItemChange(index, 'impresion_costo', e.target.value)}
-                          className="input"
-                          placeholder="0.00"
-                          min="0"
-                          step="0.01"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-600">Subtotal</label>
-                        <input
-                          type="number"
-                          value={item.impresion_subtotal.toFixed(2)}
-                          className="input bg-white"
-                          readOnly
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Módulo Planchado */}
-                <div className="mb-4">
-                  <label className="flex items-center space-x-2 mb-2">
-                    <input
-                      type="checkbox"
-                      checked={item.usePlanchado}
-                      onChange={(e) => handleItemChange(index, 'usePlanchado', e.target.checked)}
-                      className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                    />
-                    <span className="font-medium text-gray-900">Planchado</span>
-                  </label>
+                {modulosHabilitados.planchado && (
+                  <div className="mb-4">
+                    <label className="flex items-center space-x-2 mb-2">
+                      <input
+                        type="checkbox"
+                        checked={item.usePlanchado}
+                        onChange={(e) => handleItemChange(index, 'usePlanchado', e.target.checked)}
+                        className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                      <span className="font-medium text-gray-900">Planchado</span>
+                    </label>
                   
-                  {item.usePlanchado && (
-                    <div className="grid grid-cols-3 gap-3 ml-6">
-                      <div>
-                        <label className="text-xs text-gray-600">Cantidad</label>
-                        <input
-                          type="number"
-                          value={item.planchado_cantidad}
-                          onChange={(e) => handleItemChange(index, 'planchado_cantidad', e.target.value)}
-                          className="input"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
+                    {item.usePlanchado && (
+                      <div className="grid grid-cols-3 gap-3 ml-6">
+                        <div>
+                          <label className="text-xs text-gray-600">Cantidad</label>
+                          <input
+                            type="number"
+                            value={item.planchado_cantidad}
+                            onChange={(e) => handleItemChange(index, 'planchado_cantidad', e.target.value)}
+                            className="input"
+                            placeholder="0"
+                            min="0"
+                            step="1"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-600">Costo/unidad (Bs)</label>
+                          <input
+                            type="number"
+                            value={item.planchado_costo}
+                            onChange={(e) => handleItemChange(index, 'planchado_costo', e.target.value)}
+                            className="input"
+                            placeholder="0.00"
+                            min="0"
+                            step="0.01"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-600">Subtotal</label>
+                          <input
+                            type="number"
+                            value={item.planchado_subtotal.toFixed(2)}
+                            className="input bg-white"
+                            readOnly
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="text-xs text-gray-600">Costo/unidad (Bs)</label>
-                        <input
-                          type="number"
-                          value={item.planchado_costo}
-                          onChange={(e) => handleItemChange(index, 'planchado_costo', e.target.value)}
-                          className="input"
-                          placeholder="0.00"
-                          min="0"
-                          step="0.01"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-600">Subtotal</label>
-                        <input
-                          type="number"
-                          value={item.planchado_subtotal.toFixed(2)}
-                          className="input bg-white"
-                          readOnly
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Módulo Insignias Texturizadas */}
-                <div className="mb-4">
-                  <label className="flex items-center space-x-2 mb-2">
-                    <input
-                      type="checkbox"
-                      checked={item.useInsignia}
-                      onChange={(e) => handleItemChange(index, 'useInsignia', e.target.checked)}
-                      className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                    />
-                    <span className="font-medium text-gray-900">Insignias Texturizadas</span>
-                  </label>
+                {modulosHabilitados.insignia && (
+                  <div className="mb-4">
+                    <label className="flex items-center space-x-2 mb-2">
+                      <input
+                        type="checkbox"
+                        checked={item.useInsignia}
+                        onChange={(e) => handleItemChange(index, 'useInsignia', e.target.checked)}
+                        className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                      <span className="font-medium text-gray-900">Insignias Texturizadas</span>
+                    </label>
                   
-                  {item.useInsignia && (
-                    <div className="grid grid-cols-3 gap-3 ml-6">
-                      <div>
-                        <label className="text-xs text-gray-600">Cantidad</label>
-                        <input
-                          type="number"
-                          value={item.insignia_cantidad}
-                          onChange={(e) => handleItemChange(index, 'insignia_cantidad', e.target.value)}
-                          className="input"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
+                    {item.useInsignia && (
+                      <div className="grid grid-cols-3 gap-3 ml-6">
+                        <div>
+                          <label className="text-xs text-gray-600">Cantidad</label>
+                          <input
+                            type="number"
+                            value={item.insignia_cantidad}
+                            onChange={(e) => handleItemChange(index, 'insignia_cantidad', e.target.value)}
+                            className="input"
+                            placeholder="0"
+                            min="0"
+                            step="1"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-600">Costo/unidad (Bs)</label>
+                          <input
+                            type="number"
+                            value={item.insignia_costo}
+                            onChange={(e) => handleItemChange(index, 'insignia_costo', e.target.value)}
+                            className="input"
+                            placeholder="0.00"
+                            min="0"
+                            step="0.01"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-600">Subtotal</label>
+                          <input
+                            type="number"
+                            value={item.insignia_subtotal.toFixed(2)}
+                            className="input bg-white"
+                            readOnly
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="text-xs text-gray-600">Costo/unidad (Bs)</label>
-                        <input
-                          type="number"
-                          value={item.insignia_costo}
-                          onChange={(e) => handleItemChange(index, 'insignia_costo', e.target.value)}
-                          className="input"
-                          placeholder="0.00"
-                          min="0"
-                          step="0.01"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-600">Subtotal</label>
-                        <input
-                          type="number"
-                          value={item.insignia_subtotal.toFixed(2)}
-                          className="input bg-white"
-                          readOnly
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Total del Item */}
                 <div className="flex justify-end pt-3 border-t border-gray-300">

@@ -92,6 +92,151 @@ export const getClientById = async (req, res) => {
   }
 };
 
+// Obtener pedidos de un cliente específico
+export const getClientOrders = async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const { page = 1, limit = 50 } = req.query;
+    const offset = (page - 1) * limit;
+
+    // Verificar que el cliente existe
+    const clientCheck = await pool.query(
+      'SELECT phone, name FROM clients WHERE phone = $1',
+      [phone]
+    );
+
+    if (clientCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Cliente no encontrado' });
+    }
+
+    // Obtener pedidos del cliente
+    const result = await pool.query(
+      `SELECT o.id, o.receipt_number, o.order_date, o.order_day,
+              o.description, o.total, o.status, o.payment_status,
+              wt.name as work_type_name,
+              pt.name as payment_type_name,
+              u.full_name as created_by_name,
+              COUNT(oi.id) as items_count
+       FROM orders o
+       LEFT JOIN work_types wt ON o.work_type_id = wt.id
+       LEFT JOIN payment_types pt ON o.payment_type_id = pt.id
+       LEFT JOIN users u ON o.created_by = u.id
+       LEFT JOIN order_items oi ON o.id = oi.order_id
+       WHERE o.client_phone = $1
+       GROUP BY o.id, wt.name, pt.name, u.full_name
+       ORDER BY o.order_date DESC, o.id DESC
+       LIMIT $2 OFFSET $3`,
+      [phone, limit, offset]
+    );
+
+    // Contar total de pedidos
+    const countResult = await pool.query(
+      'SELECT COUNT(*) FROM orders WHERE client_phone = $1',
+      [phone]
+    );
+
+    const total = parseInt(countResult.rows[0].count);
+
+    res.json({
+      client: clientCheck.rows[0],
+      orders: result.rows,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error al obtener pedidos del cliente:', error);
+    res.status(500).json({ message: 'Error en el servidor' });
+  }
+};
+
+// Obtener estadísticas de clientes por tipo de trabajo
+export const getClientStats = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT 
+        c.phone,
+        c.name,
+        c.empresa,
+        c.email,
+        c.tipo_cliente,
+        c.tipo_usuario,
+        c.ciudad,
+        c.departamento,
+        c.pais,
+        wt.id as work_type_id,
+        wt.name as work_type_name,
+        COUNT(o.id) as order_count,
+        COALESCE(SUM(o.total), 0) as total_spent,
+        MAX(o.order_date) as last_order_date,
+        MIN(o.order_date) as first_order_date
+       FROM clients c
+       LEFT JOIN orders o ON c.phone = o.client_phone AND o.status != 'cancelado'
+       LEFT JOIN work_types wt ON o.work_type_id = wt.id
+       GROUP BY c.phone, c.name, c.empresa, c.email, c.tipo_cliente, c.tipo_usuario,
+                c.ciudad, c.departamento, c.pais, wt.id, wt.name
+       HAVING COUNT(o.id) > 0
+       ORDER BY c.name ASC, wt.name ASC`
+    );
+
+    // Agrupar por cliente
+    const clientsMap = {};
+    
+    result.rows.forEach(row => {
+      if (!clientsMap[row.phone]) {
+        clientsMap[row.phone] = {
+          phone: row.phone,
+          name: row.name,
+          empresa: row.empresa,
+          email: row.email,
+          tipo_cliente: row.tipo_cliente,
+          tipo_usuario: row.tipo_usuario,
+          ciudad: row.ciudad,
+          departamento: row.departamento,
+          pais: row.pais,
+          total_orders: 0,
+          total_spent: 0,
+          work_types: [],
+          first_order_date: row.first_order_date,
+          last_order_date: row.last_order_date
+        };
+      }
+
+      if (row.work_type_name) {
+        clientsMap[row.phone].work_types.push({
+          work_type_id: row.work_type_id,
+          work_type_name: row.work_type_name,
+          order_count: parseInt(row.order_count),
+          total_spent: parseFloat(row.total_spent)
+        });
+        clientsMap[row.phone].total_orders += parseInt(row.order_count);
+        clientsMap[row.phone].total_spent += parseFloat(row.total_spent);
+      }
+
+      // Actualizar fechas
+      if (!clientsMap[row.phone].first_order_date || row.first_order_date < clientsMap[row.phone].first_order_date) {
+        clientsMap[row.phone].first_order_date = row.first_order_date;
+      }
+      if (!clientsMap[row.phone].last_order_date || row.last_order_date > clientsMap[row.phone].last_order_date) {
+        clientsMap[row.phone].last_order_date = row.last_order_date;
+      }
+    });
+
+    const clients = Object.values(clientsMap);
+
+    res.json({
+      clients,
+      total: clients.length
+    });
+  } catch (error) {
+    console.error('Error al obtener estadísticas de clientes:', error);
+    res.status(500).json({ message: 'Error en el servidor' });
+  }
+};
+
 // Crear cliente
 export const createClient = async (req, res) => {
   try {

@@ -11,6 +11,7 @@ import orderRoutes from './routes/order.routes.js';
 import productRoutes from './routes/product.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
 import reportRoutes from './routes/report.routes.js';
+import rolloRoutes from './routes/rollo.routes.js';
 
 dotenv.config();
 
@@ -37,6 +38,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/rollos', rolloRoutes);
 
 // Ruta de health check
 app.get('/api/health', async (req, res) => {
@@ -69,7 +71,8 @@ app.get('/', (req, res) => {
       orders: '/api/orders',
       products: '/api/products',
       payments: '/api/payments',
-      reports: '/api/reports'
+      reports: '/api/reports',
+      rollos: '/api/rollos'
     }
   });
 });

@@ -14,6 +14,12 @@ router.get('/', clientController.getAllClients);
 // Buscar clientes
 router.get('/search', clientController.searchClients);
 
+// Obtener estadísticas de clientes por tipo de trabajo
+router.get('/stats/analytics', clientController.getClientStats);
+
+// Obtener pedidos de un cliente (debe estar ANTES de /:phone)
+router.get('/:phone/orders', clientController.getClientOrders);
+
 // Obtener cliente por teléfono
 router.get('/:phone', clientController.getClientById);
 

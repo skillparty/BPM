@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Plus, Search, Edit, Trash2, X, Save } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, X, Save, Package, Eye, BarChart3, Users } from 'lucide-react';
+import ClientAnalytics from './ClientAnalytics';
 
 const Clients = () => {
   const [clients, setClients] = useState([]);
@@ -9,6 +10,11 @@ const Clients = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
+  const [showOrdersModal, setShowOrdersModal] = useState(false);
+  const [selectedClientOrders, setSelectedClientOrders] = useState([]);
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [activeTab, setActiveTab] = useState('list'); // 'list' o 'analytics'
   const [formData, setFormData] = useState({
     phone: '',
     name: '',
@@ -135,6 +141,46 @@ const Clients = () => {
     }
   };
 
+  const handleViewOrders = async (client) => {
+    setSelectedClient(client);
+    setShowOrdersModal(true);
+    setLoadingOrders(true);
+
+    try {
+      const response = await api.get(`/clients/${client.phone}/orders`);
+      setSelectedClientOrders(response.data.orders || []);
+    } catch (error) {
+      console.error('Error al cargar pedidos:', error);
+      toast.error('Error al cargar los pedidos del cliente');
+      setSelectedClientOrders([]);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
+  const handleCloseOrdersModal = () => {
+    setShowOrdersModal(false);
+    setSelectedClient(null);
+    setSelectedClientOrders([]);
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-BO', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('es-BO', {
+      style: 'currency',
+      currency: 'BOB',
+      minimumFractionDigits: 2
+    }).format(amount);
+  };
+
   const filteredClients = clients.filter(client =>
     client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -153,38 +199,58 @@ const Clients = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
-          <p className="text-gray-500 mt-1">Gestiona la base de datos de clientes</p>
+          <p className="text-gray-600">Gestiona la información de tus clientes</p>
         </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="btn btn-primary inline-flex items-center space-x-2"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Nuevo Cliente</span>
-        </button>
+        {activeTab === 'list' && (
+          <button
+            onClick={() => handleOpenModal()}
+            className="btn btn-primary inline-flex items-center space-x-2"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Nuevo Cliente</span>
+          </button>
+        )}
       </div>
 
-      {/* Search */}
+      {/* Tabs */}
       <div className="card">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Buscar clientes por nombre, teléfono o email..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="input pl-10"
-          />
+        <div className="flex space-x-1 border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('list')}
+            className={`flex items-center space-x-2 px-4 py-3 font-medium text-sm border-b-2 transition-colors ${
+              activeTab === 'list'
+                ? 'border-primary-600 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Users className="w-5 h-5" />
+            <span>Lista de Clientes</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`flex items-center space-x-2 px-4 py-3 font-medium text-sm border-b-2 transition-colors ${
+              activeTab === 'analytics'
+                ? 'border-primary-600 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <BarChart3 className="w-5 h-5" />
+            <span>Análisis por Tipo de Trabajo</span>
+          </button>
         </div>
       </div>
 
-      {/* Clients Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Vista de Análisis */}
+      {activeTab === 'analytics' && <ClientAnalytics />}
+
+      {/* Grid de Clientes */}
+      {activeTab === 'list' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredClients.map((client) => (
-          <div key={client.phone} className="card hover:shadow-md transition-shadow">
+          <div key={client.phone} className="card hover:shadow-lg transition-shadow">
             <div className="flex justify-between items-start mb-3">
               <div>
                 <h3 className="font-semibold text-lg text-gray-900">{client.name}</h3>
@@ -235,9 +301,14 @@ const Clients = () => {
             )}
 
             <div className="flex items-center justify-between pt-3 border-t border-gray-200">
-              <div className="text-xs text-gray-500">
-                {client.total_orders || 0} pedidos
-              </div>
+              <button
+                onClick={() => handleViewOrders(client)}
+                className="text-xs font-medium text-primary-600 hover:text-primary-700 hover:underline flex items-center space-x-1"
+                title="Ver pedidos"
+              >
+                <Package className="w-3 h-3" />
+                <span>{client.total_orders || 0} pedidos</span>
+              </button>
               <div className="flex space-x-2">
                 <button
                   onClick={() => handleOpenModal(client)}
@@ -257,12 +328,13 @@ const Clients = () => {
             </div>
           </div>
         ))}
-      </div>
 
-      {filteredClients.length === 0 && (
-        <div className="text-center py-12 card">
-          <p className="text-gray-500">No se encontraron clientes</p>
-        </div>
+        {filteredClients.length === 0 && (
+          <div className="col-span-full text-center py-12 card">
+            <p className="text-gray-500">No se encontraron clientes</p>
+          </div>
+        )}
+      </div>
       )}
 
       {/* Modal */}
@@ -504,6 +576,170 @@ const Clients = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Pedidos del Cliente */}
+      {showOrdersModal && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Pedidos de {selectedClient?.name}
+                  </h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    📞 {selectedClient?.phone} {selectedClient?.empresa && `• 🏢 ${selectedClient.empresa}`}
+                  </p>
+                </div>
+                <button
+                  onClick={handleCloseOrdersModal}
+                  className="p-2 hover:bg-gray-100 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {loadingOrders ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+                    <p className="text-gray-500">Cargando pedidos...</p>
+                  </div>
+                </div>
+              ) : selectedClientOrders.length === 0 ? (
+                <div className="text-center py-12">
+                  <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500 text-lg">Este cliente aún no tiene pedidos</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Recibo
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Fecha
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Tipo de Trabajo
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Items
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Total
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Estado
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Pago
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Acciones
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {selectedClientOrders.map((order) => (
+                        <tr key={order.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              #{order.receipt_number}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{formatDate(order.order_date)}</div>
+                            <div className="text-xs text-gray-500">{order.order_day}</div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className="text-sm text-gray-900">{order.work_type_name}</span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-center">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                              {order.items_count} items
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="text-sm font-semibold text-gray-900">
+                              {formatCurrency(order.total)}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              order.status === 'completado' ? 'bg-green-100 text-green-800' :
+                              order.status === 'en_proceso' ? 'bg-blue-100 text-blue-800' :
+                              order.status === 'pendiente' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {order.status === 'en_proceso' ? 'En Proceso' : 
+                               order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              order.payment_status === 'pagado' ? 'bg-green-100 text-green-800' :
+                              order.payment_status === 'parcial' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {order.payment_status?.charAt(0).toUpperCase() + order.payment_status?.slice(1)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm">
+                            <button
+                              onClick={() => window.open(`/orders/${order.id}`, '_blank')}
+                              className="text-primary-600 hover:text-primary-900 flex items-center space-x-1"
+                              title="Ver detalle"
+                            >
+                              <Eye className="w-4 h-4" />
+                              <span>Ver</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Resumen */}
+                  <div className="mt-6 bg-gray-50 p-4 rounded-lg">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="text-center">
+                        <p className="text-sm text-gray-600">Total de Pedidos</p>
+                        <p className="text-2xl font-bold text-gray-900">{selectedClientOrders.length}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm text-gray-600">Monto Total</p>
+                        <p className="text-2xl font-bold text-primary-600">
+                          {formatCurrency(selectedClientOrders.reduce((sum, order) => sum + parseFloat(order.total || 0), 0))}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm text-gray-600">Último Pedido</p>
+                        <p className="text-lg font-semibold text-gray-900">
+                          {selectedClientOrders.length > 0 ? formatDate(selectedClientOrders[0].order_date) : 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={handleCloseOrdersModal}
+                className="btn btn-secondary w-full md:w-auto"
+              >
+                Cerrar
+              </button>
             </div>
           </div>
         </div>
