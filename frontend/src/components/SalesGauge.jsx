@@ -141,17 +141,17 @@ const SalesGauge = ({ current, target = 400 }) => {
         <div className="text-sm text-gray-500 mt-1">
           de {target} pedidos
         </div>
-        <div className="text-lg font-semibold text-gray-700 mt-2">
+        <div className="text-lg font-semibold mt-2" style={{ color }}>
           {percentage.toFixed(1)}%
         </div>
       </div>
       
       {/* Etiquetas de escala */}
-      <div className="flex justify-between w-full max-w-[250px] mt-2 text-xs text-gray-500">
-        <span>0</span>
-        <span>30%</span>
-        <span>70%</span>
-        <span>100%</span>
+      <div className="flex justify-between w-full max-w-[250px] mt-2 text-xs font-medium">
+        <span style={{ color: getColor(0) }}>0</span>
+        <span style={{ color: getColor(30) }}>30%</span>
+        <span style={{ color: getColor(70) }}>70%</span>
+        <span style={{ color: getColor(100) }}>100%</span>
       </div>
     </div>
   );

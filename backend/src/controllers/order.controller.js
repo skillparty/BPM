@@ -80,7 +80,7 @@ export const getAllOrders = async (req, res) => {
     }
 
     query += ` GROUP BY o.id, wt.name, pt.name, b.name, u.full_name
-               ORDER BY o.order_date DESC, o.id DESC
+               ORDER BY o.created_at DESC, o.id DESC
                LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
 
     params.push(limit, offset);
@@ -216,7 +216,6 @@ export const createOrder = async (req, res) => {
       client_phone,
       client_name,
       order_date,
-      order_day,
       work_type_id,
       numero_rollo,
       description,
@@ -240,13 +239,13 @@ export const createOrder = async (req, res) => {
     // Crear pedido
     const orderResult = await client.query(
       `INSERT INTO orders (
-        receipt_number, client_phone, client_name, order_date, order_day, work_type_id,
+        receipt_number, client_phone, client_name, order_date, work_type_id,
         numero_rollo, description, subtotal, total, payment_type_id, bank_id, 
         payment_status, qr_code, notes, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *`,
       [
-        receiptNumber, client_phone, client_name, order_date || new Date(), order_day,
+        receiptNumber, client_phone, client_name, order_date || new Date(),
         work_type_id, numero_rollo, description, subtotal, total, payment_type_id,
         bank_id, payment_status, qrCode, notes, req.user.id
       ]

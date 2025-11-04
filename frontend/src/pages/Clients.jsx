@@ -658,7 +658,6 @@ const Clients = () => {
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="text-sm text-gray-900">{formatDate(order.order_date)}</div>
-                            <div className="text-xs text-gray-500">{order.order_day}</div>
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <span className="text-sm text-gray-900">{order.work_type_name}</span>

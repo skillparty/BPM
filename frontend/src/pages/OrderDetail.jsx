@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Download, Edit, Trash2, Calendar, User, DollarSign, Tag, MessageCircle } from 'lucide-react';
+import QRCode from 'react-qr-code';
 
 const OrderDetail = () => {
   const { id } = useParams();
@@ -366,16 +367,21 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
       </div>
 
       {/* QR Code */}
-      {order.qr_code && (
-        <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Código QR</h3>
-          <img 
-            src={order.qr_code} 
-            alt="QR Code" 
-            className="w-48 h-48 mx-auto"
-          />
+      <div className="card">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Código QR del Pedido</h3>
+        <div className="flex flex-col items-center space-y-3">
+          <div className="bg-white p-4 rounded-lg border-2 border-gray-200">
+            <QRCode 
+              value={`Pedido: ${order.receipt_number}\nCliente: ${order.client_name}\nTotal: Bs. ${parseFloat(order.total || 0).toFixed(2)}\nFecha: ${new Date(order.order_date).toLocaleDateString('es-BO')}`}
+              size={200}
+              level="M"
+            />
+          </div>
+          <p className="text-sm text-gray-600">
+            Escanea este código para ver la información del pedido
+          </p>
         </div>
-      )}
+      </div>
     </div>
   );
 };

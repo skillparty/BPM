@@ -111,7 +111,7 @@ export const getClientOrders = async (req, res) => {
 
     // Obtener pedidos del cliente
     const result = await pool.query(
-      `SELECT o.id, o.receipt_number, o.order_date, o.order_day,
+      `SELECT o.id, o.receipt_number, o.order_date,
               o.description, o.total, o.status, o.payment_status,
               wt.name as work_type_name,
               pt.name as payment_type_name,

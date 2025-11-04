@@ -74,10 +74,10 @@ const Dashboard = () => {
     }
   ];
 
-  // Preparar datos para gráficos de torta
+  // Preparar datos para gráficos de torta (solo del mes actual)
   const salesData = [
-    { name: 'Ventas Pagadas', value: (dashboard?.month?.amount || 0) - (dashboard?.pending_payments?.amount || 0), color: '#10b981' },
-    { name: 'Ventas Pendientes', value: dashboard?.pending_payments?.amount || 0, color: '#f59e0b' }
+    { name: 'Ventas Pagadas', value: (dashboard?.month?.amount || 0) - (dashboard?.month_pending_payments?.amount || 0), color: '#10b981' },
+    { name: 'Ventas Pendientes', value: dashboard?.month_pending_payments?.amount || 0, color: '#f59e0b' }
   ];
 
   const ticketPromedio = dashboard?.month?.orders > 0 
@@ -173,8 +173,8 @@ const Dashboard = () => {
               <p className="text-lg font-bold text-gray-900">{dashboard?.month?.orders || 0}</p>
             </div>
             <div className="p-3 bg-gray-50 rounded-lg">
-              <p className="text-xs text-gray-600">Pendientes</p>
-              <p className="text-lg font-bold text-orange-600">{dashboard?.pending_payments?.count || 0}</p>
+              <p className="text-xs text-gray-600">Pendientes (mes)</p>
+              <p className="text-lg font-bold text-orange-600">{dashboard?.month_pending_payments?.count || 0}</p>
             </div>
           </div>
         </div>

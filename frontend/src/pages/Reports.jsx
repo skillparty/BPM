@@ -288,7 +288,7 @@ const Reports = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {topClients.map((client, index) => (
-                <tr key={client.id} className="hover:bg-gray-50">
+                <tr key={client.phone || index} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {index + 1}
                   </td>

@@ -33,12 +33,21 @@ export const getDashboard = async (req, res) => {
         AND status != 'cancelado'
     `);
 
-    // Pedidos pendientes de pago
+    // Pedidos pendientes de pago (todos)
     const pendingPayments = await pool.query(`
       SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as amount
       FROM orders
       WHERE payment_status IN ('pendiente', 'parcial')
         AND status = 'activo'
+    `);
+
+    // Pedidos pendientes del mes actual
+    const monthPendingPayments = await pool.query(`
+      SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as amount
+      FROM orders
+      WHERE payment_status IN ('pendiente', 'parcial')
+        AND status = 'activo'
+        AND DATE_TRUNC('month', order_date) = DATE_TRUNC('month', CURRENT_DATE)
     `);
 
     // Últimos pedidos
@@ -81,6 +90,10 @@ export const getDashboard = async (req, res) => {
       pending_payments: {
         count: parseInt(pendingPayments.rows[0].count),
         amount: parseFloat(pendingPayments.rows[0].amount)
+      },
+      month_pending_payments: {
+        count: parseInt(monthPendingPayments.rows[0].count),
+        amount: parseFloat(monthPendingPayments.rows[0].amount)
       },
       recent_orders: recentOrders.rows,
       sales_by_work_type: salesByWorkType.rows
