@@ -12,6 +12,7 @@ import productRoutes from './routes/product.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
 import reportRoutes from './routes/report.routes.js';
 import rolloRoutes from './routes/rollo.routes.js';
+import bankConfigRoutes from './routes/bankConfig.routes.js';
 
 dotenv.config();
 
@@ -38,6 +39,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/bank-config', bankConfigRoutes);
 app.use('/api/rollos', rolloRoutes);
 
 // Ruta de health check

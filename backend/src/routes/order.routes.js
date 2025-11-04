@@ -36,6 +36,9 @@ router.get('/:id/pdf', orderController.generateReceiptPDF);
 // Generar etiqueta del pedido
 router.get('/:id/label', orderController.generateLabelPDF);
 
+// Generar QR Banco para pago
+router.get('/:id/qr-banco', orderController.generateBankQR);
+
 // Eliminar pedido
 router.delete('/:id', orderController.deleteOrder);
 

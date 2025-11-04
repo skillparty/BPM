@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Download, Edit, Trash2, Calendar, User, DollarSign, Tag } from 'lucide-react';
+import { ArrowLeft, Download, Edit, Trash2, Calendar, User, DollarSign, Tag, MessageCircle } from 'lucide-react';
 
 const OrderDetail = () => {
   const { id } = useParams();
@@ -44,7 +44,16 @@ const OrderDetail = () => {
 
   const downloadPDF = async (type) => {
     try {
-      const endpoint = type === 'receipt' ? `/orders/${id}/pdf` : `/orders/${id}/label`;
+      let endpoint, fileName;
+      
+      if (type === 'receipt') {
+        endpoint = `/orders/${id}/pdf`;
+        fileName = `recibo_${id}.pdf`;
+      } else if (type === 'label') {
+        endpoint = `/orders/${id}/label`;
+        fileName = `etiqueta_${id}.pdf`;
+      }
+      
       const response = await api.get(endpoint, {
         responseType: 'blob'
       });
@@ -52,14 +61,48 @@ const OrderDetail = () => {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `${type}_${id}.pdf`);
+      link.setAttribute('download', fileName);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Error al descargar PDF:', error);
-      toast.error('Error al descargar el PDF');
+      console.error('Error al descargar archivo:', error);
+      toast.error('Error al descargar el archivo');
+    }
+  };
+
+  const sendWhatsAppQR = async () => {
+    try {
+      // Formatear mensaje para WhatsApp
+      const mensaje = `Hola ${order.client_name}! 👋
+
+Te comparto los datos de pago para tu pedido:
+
+📋 *Detalles del Pedido*
+• Pedido N°: ${order.receipt_number}
+• Fecha: ${new Date(order.order_date).toLocaleDateString('es-BO')}
+• Tipo de trabajo: ${order.work_type_name || 'N/A'}
+
+💰 *Total a Pagar: Bs. ${parseFloat(order.total || 0).toFixed(2)}*
+
+Te enviare el QR de pago en un momento para que puedas realizar la transferencia.
+
+¡Gracias por tu preferencia! 🎨`;
+
+      // Codificar mensaje para URL
+      const mensajeCodificado = encodeURIComponent(mensaje);
+      
+      // Construir URL de WhatsApp
+      const whatsappUrl = `https://wa.me/591${order.client_phone}?text=${mensajeCodificado}`;
+      
+      // Abrir WhatsApp en nueva ventana
+      window.open(whatsappUrl, '_blank');
+      
+      toast.success('Abriendo WhatsApp');
+    } catch (error) {
+      console.error('Error al abrir WhatsApp:', error);
+      toast.error('Error al abrir WhatsApp');
     }
   };
 
@@ -134,6 +177,13 @@ const OrderDetail = () => {
               <span>Etiqueta</span>
             </button>
           )}
+          <button
+            onClick={sendWhatsAppQR}
+            className="btn btn-secondary inline-flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white"
+          >
+            <MessageCircle className="w-4 h-4" />
+            <span>Enviar WhatsApp</span>
+          </button>
           {order.status !== 'cancelado' && (
             <>
               <Link

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Plus, Search, Filter, Eye, Download, Tag } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Download, Tag, MessageCircle } from 'lucide-react';
 
 const Orders = () => {
   const [orders, setOrders] = useState([]);
@@ -17,7 +17,16 @@ const Orders = () => {
 
   const downloadPDF = async (orderId, type) => {
     try {
-      const endpoint = type === 'receipt' ? `/orders/${orderId}/pdf` : `/orders/${orderId}/label`;
+      let endpoint, fileName;
+      
+      if (type === 'receipt') {
+        endpoint = `/orders/${orderId}/pdf`;
+        fileName = `recibo_${orderId}.pdf`;
+      } else if (type === 'label') {
+        endpoint = `/orders/${orderId}/label`;
+        fileName = `etiqueta_${orderId}.pdf`;
+      }
+      
       const response = await api.get(endpoint, {
         responseType: 'blob'
       });
@@ -25,14 +34,48 @@ const Orders = () => {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `${type}_${orderId}.pdf`);
+      link.setAttribute('download', fileName);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Error al descargar PDF:', error);
-      toast.error('Error al descargar el PDF');
+      console.error('Error al descargar archivo:', error);
+      toast.error('Error al descargar el archivo');
+    }
+  };
+
+  const sendWhatsAppQR = async (order) => {
+    try {
+      // Formatear mensaje para WhatsApp
+      const mensaje = `Hola ${order.client_name}! 👋
+
+Te comparto los datos de pago para tu pedido:
+
+📋 *Detalles del Pedido*
+• Pedido N°: ${order.receipt_number}
+• Fecha: ${new Date(order.order_date).toLocaleDateString('es-BO')}
+• Tipo de trabajo: ${order.work_type_name || 'N/A'}
+
+💰 *Total a Pagar: Bs. ${parseFloat(order.total || 0).toFixed(2)}*
+
+Te enviare el QR de pago en un momento para que puedas realizar la transferencia.
+
+¡Gracias por tu preferencia! 🎨`;
+
+      // Codificar mensaje para URL
+      const mensajeCodificado = encodeURIComponent(mensaje);
+      
+      // Construir URL de WhatsApp
+      const whatsappUrl = `https://wa.me/591${order.client_phone}?text=${mensajeCodificado}`;
+      
+      // Abrir WhatsApp en nueva ventana
+      window.open(whatsappUrl, '_blank');
+      
+      toast.success('Abriendo WhatsApp');
+    } catch (error) {
+      console.error('Error al abrir WhatsApp:', error);
+      toast.error('Error al abrir WhatsApp');
     }
   };
 
@@ -249,6 +292,13 @@ const Orders = () => {
                           <Tag className="w-5 h-5" />
                         </button>
                       )}
+                      <button
+                        onClick={() => sendWhatsAppQR(order)}
+                        className="text-green-600 hover:text-green-900"
+                        title="Enviar mensaje por WhatsApp"
+                      >
+                        <MessageCircle className="w-5 h-5" />
+                      </button>
                     </div>
                   </td>
                 </tr>

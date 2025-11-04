@@ -3,6 +3,7 @@ import pool from '../config/database.js';
 import QRCode from 'qrcode';
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
+import { generateOrderQRSimple } from '../utils/qrSimple.js';
 
 // Generar número de recibo único
 const generateReceiptNumber = async () => {
@@ -509,6 +510,12 @@ export const generateReceiptPDF = async (req, res) => {
       [id]
     );
 
+    // Obtener configuración bancaria activa para QR de pago
+    const bankConfigResult = await pool.query(
+      'SELECT * FROM bank_config WHERE is_active = true LIMIT 1'
+    );
+    const bankConfig = bankConfigResult.rows[0];
+
     // Crear PDF (tamaño ticket: 80mm ancho)
     const doc = new PDFDocument({ 
       size: [226.77, 800], // 80mm = 226.77 puntos, altura variable
@@ -656,7 +663,7 @@ export const generateReceiptPDF = async (req, res) => {
     doc.moveTo(20, y).lineTo(206.77, y).stroke();
     y += 10;
 
-    // QR Code - Generar código QR con información del pedido
+    // QR Code informativo del pedido
     try {
       const qrData = `Pedido: ${order.receipt_number}\nCliente: ${order.client_name}\nTotal: Bs. ${parseFloat(order.total || 0).toFixed(2)}\nFecha: ${new Date(order.order_date).toLocaleDateString('es-BO')}`;
       const qrImage = await QRCode.toDataURL(qrData, { width: 200, margin: 1 });
@@ -665,7 +672,7 @@ export const generateReceiptPDF = async (req, res) => {
       y += 110;
     } catch (err) {
       console.log('Error al generar QR:', err.message);
-      y += 10; // Espacio si falla el QR
+      y += 10;
     }
 
     // Mensaje de agradecimiento
@@ -788,6 +795,69 @@ export const generateLabelPDF = async (req, res) => {
     console.error('Stack:', error.stack);
     if (!res.headersSent) {
       res.status(500).json({ message: 'Error al generar etiqueta', error: error.message });
+    }
+  }
+};
+
+// Generar QR Banco para pago
+export const generateBankQR = async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('Generando QR Banco para pedido:', id);
+
+    // Obtener datos del pedido
+    const orderResult = await pool.query(
+      `SELECT o.*, 
+              wt.name as work_type_name
+       FROM orders o
+       LEFT JOIN work_types wt ON o.work_type_id = wt.id
+       WHERE o.id = $1`,
+      [id]
+    );
+
+    if (orderResult.rows.length === 0) {
+      console.log('Pedido no encontrado:', id);
+      return res.status(404).json({ message: 'Pedido no encontrado' });
+    }
+
+    const order = orderResult.rows[0];
+
+    // Obtener configuración bancaria activa
+    const bankConfigResult = await pool.query(
+      'SELECT * FROM bank_config WHERE is_active = true LIMIT 1'
+    );
+    const bankConfig = bankConfigResult.rows[0];
+
+    if (!bankConfig) {
+      return res.status(404).json({ message: 'No hay configuración bancaria activa' });
+    }
+
+    // Generar string QR Simple según estándar boliviano
+    const qrSimpleString = generateOrderQRSimple(order, bankConfig);
+
+    // Generar imagen QR como PNG
+    const qrImage = await QRCode.toBuffer(qrSimpleString, {
+      type: 'png',
+      width: 512,
+      margin: 2,
+      errorCorrectionLevel: 'M',
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+
+    // Enviar imagen
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Disposition', `attachment; filename=qr_banco_${order.receipt_number}.png`);
+    res.send(qrImage);
+
+    console.log('QR Banco generado exitosamente');
+  } catch (error) {
+    console.error('Error al generar QR Banco:', error.message);
+    console.error('Stack:', error.stack);
+    if (!res.headersSent) {
+      res.status(500).json({ message: 'Error al generar QR Banco', error: error.message });
     }
   }
 };

@@ -9,7 +9,8 @@ import {
   Settings, 
   LogOut,
   Menu,
-  X
+  X,
+  Landmark
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -30,6 +31,7 @@ const Layout = () => {
     { name: 'Clientes', href: '/clients', icon: Users },
     { name: 'Productos', href: '/products', icon: Package },
     { name: 'Reportes', href: '/reports', icon: BarChart3 },
+    { name: 'Config. Bancaria', href: '/bank-config', icon: Landmark },
   ];
 
   if (isSuperAdmin()) {

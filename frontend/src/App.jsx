@@ -12,6 +12,7 @@ import Products from './pages/Products';
 import Reports from './pages/Reports';
 import Users from './pages/Users';
 import Settings from './pages/Settings';
+import BankConfig from './pages/BankConfig';
 import Layout from './components/Layout';
 
 function App() {
@@ -34,6 +35,7 @@ function App() {
             <Route path="reports" element={<Reports />} />
             <Route path="users" element={<Users />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="bank-config" element={<BankConfig />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
