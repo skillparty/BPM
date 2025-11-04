@@ -504,72 +504,229 @@ export const generateReceiptPDF = async (req, res) => {
       [id]
     );
 
-    // Crear PDF
-    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    // Crear PDF (tamaño ticket: 80mm ancho)
+    const doc = new PDFDocument({ 
+      size: [226.77, 800], // 80mm = 226.77 puntos, altura variable
+      margin: 20 
+    });
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=recibo_${order.receipt_number}.pdf`);
 
     doc.pipe(res);
 
+    // Logo (si existe)
+    try {
+      doc.image('frontend/public/logo.jpg', 73, 20, { width: 80, align: 'center' });
+      doc.moveDown(5);
+    } catch (err) {
+      console.log('Logo no encontrado, continuando sin logo');
+    }
+
     // Header
-    doc.fontSize(20).text('BPM', { align: 'center' });
-    doc.fontSize(10).text('"Tu mejor aliado"', { align: 'center' });
-    doc.text('Calle Av. Santa Cruz N°1517, entre Pedro Blanco y Beni', { align: 'center' });
-    doc.text('Santa cruz - Bolivia', { align: 'center' });
+    doc.fontSize(16).font('Helvetica-Bold').text('BPM', { align: 'center' });
+    doc.fontSize(9).font('Helvetica').text('"Tu mejor aliado"', { align: 'center' });
+    doc.fontSize(8).text('Calle Av. Santa Cruz N°1317, entre', { align: 'center' });
+    doc.text('Pedro Blanco y Beni', { align: 'center' });
+    doc.text('Whatsapp: 76970918', { align: 'center' });
+    doc.text('Cochabamba - Bolivia', { align: 'center' });
+    doc.moveDown();
+
+    // Línea separadora
+    doc.moveTo(20, doc.y).lineTo(206.77, doc.y).stroke();
     doc.moveDown();
 
     // Información del recibo
-    doc.fontSize(12).text(`Recibo N°: ${order.receipt_number}`, { align: 'left' });
-    doc.text(`Fecha: ${new Date(order.order_date).toLocaleDateString('es-BO')}`);
-    doc.text(`Cliente: ${order.client_name}`);
-    if (order.work_type_name) {
-      doc.text(`Tipo de trabajo: ${order.work_type_name}`);
-    }
+    doc.fontSize(9).font('Helvetica-Bold');
+    const receiptParts = order.receipt_number.match(/.{1,3}/g) || [order.receipt_number];
+    doc.text(`Cod. Recibo N°:`, 20, doc.y, { continued: true, width: 100 });
+    doc.font('Helvetica').text(`${receiptParts.join('/')}`, { align: 'right' });
+    
+    doc.font('Helvetica-Bold').text(`CLIENTE:`, 20, doc.y, { continued: true, width: 100 });
+    doc.font('Helvetica').text(order.client_name.toUpperCase(), { align: 'right' });
+    
+    const fechaFormateada = new Date(order.created_at || order.order_date).toLocaleString('es-BO', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+    doc.font('Helvetica-Bold').text(`FECHA:`, 20, doc.y, { continued: true, width: 100 });
+    doc.font('Helvetica').text(fechaFormateada, { align: 'right' });
+
     doc.moveDown();
+
+    // Línea separadora
+    doc.moveTo(20, doc.y).lineTo(206.77, doc.y).stroke();
+    doc.moveDown();
+
+    // Descripción (si existe)
+    if (order.description && order.description.trim() !== '') {
+      doc.fontSize(9).font('Helvetica-Bold').text('Descripcion:', 20);
+      doc.font('Helvetica').text(order.description, 20, doc.y, { width: 186.77 });
+      doc.moveDown();
+    }
 
     // Tabla de items
-    doc.fontSize(10);
+    doc.fontSize(8).font('Helvetica-Bold');
     const tableTop = doc.y;
-    const itemX = 50;
-    const cantX = 300;
-    const precioX = 380;
-    const totalX = 460;
+    const itemX = 20;
+    const cantX = 100;
+    const precioX = 135;
+    const totalItemX = 175;
 
     // Headers
-    doc.font('Helvetica-Bold');
     doc.text('Item', itemX, tableTop);
-    doc.text('Cant.', cantX, tableTop);
-    doc.text('P.Unit', precioX, tableTop);
-    doc.text('Total', totalX, tableTop);
+    doc.text('Cant.', cantX, tableTop, { width: 30, align: 'right' });
+    doc.text('P.Unit', precioX, tableTop, { width: 35, align: 'right' });
+    doc.text('Total', totalItemX, tableTop, { width: 35, align: 'right' });
+    
+    let y = tableTop + 15;
+
+    // Línea debajo de headers
+    doc.moveTo(20, y - 3).lineTo(206.77, y - 3).stroke();
+
     doc.font('Helvetica');
-
-    let y = tableTop + 20;
-
-    itemsResult.rows.forEach((item, index) => {
-      doc.text(item.description, itemX, y, { width: 240 });
-      doc.text(item.quantity.toString(), cantX, y);
-      doc.text(item.unit_price.toFixed(2), precioX, y);
-      doc.text(item.total.toFixed(2), totalX, y);
-      y += 20;
+    itemsResult.rows.forEach((item) => {
+      // Nombre del item
+      doc.text(item.description || '-', itemX, y, { width: 75 });
+      
+      // Cantidad
+      doc.text(item.quantity.toFixed(2), cantX, y, { width: 30, align: 'right' });
+      
+      // Precio unitario
+      doc.text(item.unit_price.toFixed(2), precioX, y, { width: 35, align: 'right' });
+      
+      // Total del item
+      doc.text(item.total.toFixed(2), totalItemX, y, { width: 35, align: 'right' });
+      
+      y += 15;
     });
 
-    // Total
-    doc.moveDown();
-    doc.font('Helvetica-Bold').fontSize(12);
-    doc.text(`Total: Bs. ${order.total.toFixed(2)}`, totalX - 50, y + 20);
+    // Línea antes del total
+    doc.moveTo(20, y).lineTo(206.77, y).stroke();
+    y += 10;
 
-    // QR Code (si existe)
+    // Total
+    doc.fontSize(10).font('Helvetica-Bold');
+    doc.text('Total Bs:', 135, y, { continued: true });
+    doc.text(order.total.toFixed(2), { align: 'right' });
+    
+    y += 25;
+
+    // QR Code
     if (order.qr_code) {
-      const qrImage = order.qr_code.replace(/^data:image\/\w+;base64,/, '');
-      const qrBuffer = Buffer.from(qrImage, 'base64');
-      doc.image(qrBuffer, 50, y + 50, { width: 100 });
+      try {
+        const qrImage = order.qr_code.replace(/^data:image\/\w+;base64,/, '');
+        const qrBuffer = Buffer.from(qrImage, 'base64');
+        doc.image(qrBuffer, 63, y, { width: 100 });
+        y += 110;
+      } catch (err) {
+        console.log('Error al insertar QR:', err);
+      }
     }
+
+    // Línea separadora final
+    doc.moveTo(20, y).lineTo(206.77, y).stroke();
+    y += 10;
+
+    // Mensaje de agradecimiento
+    doc.fontSize(9).font('Helvetica').text('¡Gracias por su compra!', 20, y, { align: 'center' });
 
     doc.end();
   } catch (error) {
     console.error('Error al generar PDF:', error);
     res.status(500).json({ message: 'Error al generar PDF' });
+  }
+};
+
+// Generar etiqueta del pedido
+export const generateLabelPDF = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Obtener datos del pedido
+    const orderResult = await pool.query(
+      `SELECT o.*, 
+              wt.name as work_type_name,
+              wt.code as work_type_code
+       FROM orders o
+       LEFT JOIN work_types wt ON o.work_type_id = wt.id
+       WHERE o.id = $1`,
+      [id]
+    );
+
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Pedido no encontrado' });
+    }
+
+    const order = orderResult.rows[0];
+
+    // Calcular metraje total para DTF
+    let metrajeDTF = 0;
+    if (order.work_type_code === '1' || order.work_type_code === '3') { // DTF o DTF+PL
+      const itemsResult = await pool.query(
+        'SELECT SUM(quantity) as total FROM order_items WHERE order_id = $1',
+        [id]
+      );
+      metrajeDTF = parseFloat(itemsResult.rows[0]?.total || 0);
+    }
+
+    // Crear PDF etiqueta (tamaño pequeño)
+    const doc = new PDFDocument({ 
+      size: [226.77, 350], // 80mm ancho, altura más pequeña para etiqueta
+      margin: 15 
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=etiqueta_${order.receipt_number}.pdf`);
+
+    doc.pipe(res);
+
+    // Logo
+    try {
+      doc.image('frontend/public/logo.jpg', 73, 15, { width: 80, align: 'center' });
+      doc.moveDown(5);
+    } catch (err) {
+      console.log('Logo no encontrado, continuando sin logo');
+    }
+
+    // Header
+    doc.fontSize(18).font('Helvetica-Bold').text('BPM', { align: 'center' });
+    doc.fontSize(10).font('Helvetica').text('"Tu mejor aliado"', { align: 'center' });
+    doc.moveDown();
+
+    // Información del cliente
+    doc.fontSize(11).font('Helvetica-Bold');
+    doc.text('CLIENTE:', 15, doc.y, { continued: true, width: 80 });
+    doc.font('Helvetica').text(order.client_name.toUpperCase(), { align: 'right' });
+    
+    doc.moveDown(0.5);
+
+    // Fecha
+    const fechaEtiqueta = new Date(order.order_date).toLocaleDateString('es-BO', {
+      day: 'numeric',
+      month: 'numeric',
+      year: '2-digit'
+    });
+    doc.font('Helvetica-Bold').text('FECHA:', 15, doc.y, { continued: true, width: 80 });
+    doc.font('Helvetica').text(fechaEtiqueta, { align: 'right' });
+    
+    doc.moveDown(1);
+
+    // Metraje DTF (si aplica)
+    if (order.work_type_code === '1' || order.work_type_code === '3') {
+      doc.fontSize(10).font('Helvetica-Bold').text('METRAJE DTF:', { align: 'center' });
+      doc.moveDown(0.5);
+      doc.fontSize(40).font('Helvetica-Bold').text(metrajeDTF.toFixed(2), { align: 'center' });
+    }
+
+    doc.end();
+  } catch (error) {
+    console.error('Error al generar etiqueta:', error);
+    res.status(500).json({ message: 'Error al generar etiqueta' });
   }
 };
 

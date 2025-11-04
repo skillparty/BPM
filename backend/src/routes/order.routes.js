@@ -33,6 +33,9 @@ router.patch('/:id/status', orderController.updateOrderStatus);
 // Generar PDF del recibo
 router.get('/:id/pdf', orderController.generateReceiptPDF);
 
+// Generar etiqueta del pedido
+router.get('/:id/label', orderController.generateLabelPDF);
+
 // Eliminar pedido
 router.delete('/:id', orderController.deleteOrder);
 

@@ -635,21 +635,6 @@ const OrderForm = () => {
                 </div>
               )}
             </div>
-
-            <div>
-              <label htmlFor="description" className="label">
-                Descripción
-              </label>
-              <input
-                type="text"
-                id="description"
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                className="input"
-                placeholder="Descripción general del pedido"
-              />
-            </div>
           </div>
         </div>
 

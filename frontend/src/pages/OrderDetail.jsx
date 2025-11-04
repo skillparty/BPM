@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Download, Edit, Trash2, Calendar, User, DollarSign } from 'lucide-react';
+import { ArrowLeft, Download, Edit, Trash2, Calendar, User, DollarSign, Tag } from 'lucide-react';
 
 const OrderDetail = () => {
   const { id } = useParams();
@@ -103,7 +103,16 @@ const OrderDetail = () => {
             className="btn btn-secondary inline-flex items-center space-x-2"
           >
             <Download className="w-5 h-5" />
-            <span>Descargar PDF</span>
+            <span>Recibo</span>
+          </a>
+          <a
+            href={`/api/orders/${id}/label`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-secondary inline-flex items-center space-x-2"
+          >
+            <Tag className="w-5 h-5" />
+            <span>Etiqueta</span>
           </a>
           {order.status !== 'cancelado' && (
             <>
@@ -175,10 +184,6 @@ const OrderDetail = () => {
           <div>
             <p className="text-sm text-gray-600">Tipo de Trabajo</p>
             <p className="font-medium text-gray-900">{order.work_type_name || '-'}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-600">Descripción</p>
-            <p className="font-medium text-gray-900">{order.description || '-'}</p>
           </div>
           <div>
             <p className="text-sm text-gray-600">Estado</p>

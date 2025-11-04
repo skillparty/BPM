@@ -289,17 +289,19 @@ export const getTopClients = async (req, res) => {
 
     const result = await pool.query(`
       SELECT 
-        c.id,
-        c.name,
         c.phone,
+        c.name,
+        c.empresa,
         c.email,
+        c.tipo_cliente,
+        c.tipo_usuario,
         COUNT(o.id) as total_orders,
         COALESCE(SUM(o.total), 0) as total_spent,
         MAX(o.order_date) as last_order_date
       FROM clients c
-      INNER JOIN orders o ON c.id = o.client_id
+      INNER JOIN orders o ON c.phone = o.client_phone
       WHERE o.status != 'cancelado'
-      GROUP BY c.id, c.name, c.phone, c.email
+      GROUP BY c.phone, c.name, c.empresa, c.email, c.tipo_cliente, c.tipo_usuario
       ORDER BY total_spent DESC
       LIMIT $1
     `, [limit]);
@@ -307,6 +309,65 @@ export const getTopClients = async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error al obtener top clientes:', error);
+    res.status(500).json({ message: 'Error en el servidor' });
+  }
+};
+
+// Pedidos con pago pendiente
+export const getPendingPaymentOrders = async (req, res) => {
+  try {
+    const { date_from, date_to } = req.query;
+
+    let query = `
+      SELECT 
+        o.id,
+        o.receipt_number,
+        o.order_date,
+        o.client_name,
+        o.client_phone,
+        wt.name as work_type,
+        o.total,
+        o.payment_status,
+        o.status,
+        pt.name as payment_type
+      FROM orders o
+      LEFT JOIN work_types wt ON o.work_type_id = wt.id
+      LEFT JOIN payment_types pt ON o.payment_type_id = pt.id
+      WHERE o.payment_status IN ('pendiente', 'parcial')
+        AND o.status != 'cancelado'
+    `;
+
+    const params = [];
+    let paramIndex = 1;
+
+    if (date_from) {
+      query += ` AND o.order_date >= $${paramIndex}`;
+      params.push(date_from);
+      paramIndex++;
+    }
+
+    if (date_to) {
+      query += ` AND o.order_date <= $${paramIndex}`;
+      params.push(date_to);
+      paramIndex++;
+    }
+
+    query += ' ORDER BY o.order_date DESC, o.id DESC';
+
+    const result = await pool.query(query, params);
+
+    // Calcular total pendiente
+    const totalPendiente = result.rows.reduce((sum, order) => sum + parseFloat(order.total), 0);
+
+    res.json({
+      orders: result.rows,
+      summary: {
+        total_orders: result.rows.length,
+        total_amount: totalPendiente
+      }
+    });
+  } catch (error) {
+    console.error('Error al obtener pedidos pendientes:', error);
     res.status(500).json({ message: 'Error en el servidor' });
   }
 };

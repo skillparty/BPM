@@ -15,5 +15,6 @@ router.get('/monthly', reportController.getMonthlyReport);
 router.get('/work-types', reportController.getWorkTypesReport);
 router.get('/payment-types', reportController.getPaymentTypesReport);
 router.get('/top-clients', reportController.getTopClients);
+router.get('/pending-payments', reportController.getPendingPaymentOrders);
 
 export default router;

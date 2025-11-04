@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Download, TrendingUp, DollarSign, Calendar } from 'lucide-react';
+import { Download, TrendingUp, DollarSign, Calendar, X, ExternalLink } from 'lucide-react';
 
 const Reports = () => {
   const [loading, setLoading] = useState(true);
@@ -14,6 +14,9 @@ const Reports = () => {
   const [paymentTypesReport, setPaymentTypesReport] = useState([]);
   const [monthlyReport, setMonthlyReport] = useState([]);
   const [topClients, setTopClients] = useState([]);
+  const [showPendingModal, setShowPendingModal] = useState(false);
+  const [pendingOrders, setPendingOrders] = useState([]);
+  const [loadingPending, setLoadingPending] = useState(false);
 
   useEffect(() => {
     fetchReports();
@@ -31,7 +34,14 @@ const Reports = () => {
       ]);
 
       setSalesReport(sales.data);
-      setWorkTypesReport(workTypes.data);
+      
+      // Filtrar solo SUBLIM, DTF, DTF+PL y INSIG-T
+      const allowedTypes = ['SUBLIM', 'DTF', 'DTF+PL', 'INSIG-T'];
+      const filteredWorkTypes = workTypes.data.filter(item => 
+        allowedTypes.includes(item.work_type)
+      );
+      setWorkTypesReport(filteredWorkTypes);
+      
       setPaymentTypesReport(paymentTypes.data);
       setMonthlyReport(monthly.data);
       setTopClients(clients.data);
@@ -41,6 +51,37 @@ const Reports = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchPendingOrders = async () => {
+    try {
+      setLoadingPending(true);
+      const response = await api.get('/reports/pending-payments', {
+        params: { date_from: dateFrom, date_to: dateTo }
+      });
+      setPendingOrders(response.data.orders);
+      setShowPendingModal(true);
+    } catch (error) {
+      console.error('Error al cargar pedidos pendientes:', error);
+      toast.error('Error al cargar pedidos pendientes');
+    } finally {
+      setLoadingPending(false);
+    }
+  };
+
+  const handlePaymentBarClick = (paymentType) => {
+    if (paymentType === 'Pago Pendiente') {
+      fetchPendingOrders();
+    }
+  };
+
+  const getPaymentStatusBadge = (status) => {
+    const badges = {
+      'pagado': 'bg-green-100 text-green-700',
+      'parcial': 'bg-yellow-100 text-yellow-700',
+      'pendiente': 'bg-red-100 text-red-700'
+    };
+    return badges[status] || 'bg-gray-100 text-gray-700';
   };
 
   if (loading) {
@@ -183,33 +224,42 @@ const Reports = () => {
           </h3>
           
           <div className="space-y-3">
-            {paymentTypesReport.map((item) => (
-              <div key={item.payment_type} className="space-y-1">
-                <div className="flex justify-between text-sm">
-                  <span className="font-medium text-gray-700">{item.payment_type}</span>
-                  <div className="text-right">
-                    <span className="text-gray-900 font-semibold">
-                      Bs. {parseFloat(item.total_amount).toFixed(2)}
-                    </span>
-                    <span className="text-gray-500 ml-2">
-                      ({item.total_orders} pedidos)
-                    </span>
+            {paymentTypesReport.map((item) => {
+              const isPending = item.payment_type === 'Pago Pendiente';
+              const barColor = isPending ? 'bg-yellow-500' : 'bg-green-600';
+              
+              return (
+                <div key={item.payment_type} className="space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium text-gray-700">{item.payment_type}</span>
+                    <div className="text-right">
+                      <span className="text-gray-900 font-semibold">
+                        Bs. {parseFloat(item.total_amount).toFixed(2)}
+                      </span>
+                      <span className="text-gray-500 ml-2">
+                        ({item.total_orders} pedidos)
+                      </span>
+                    </div>
+                  </div>
+                  <div 
+                    className={`w-full bg-gray-200 rounded-full h-2 ${isPending ? 'cursor-pointer hover:opacity-80' : ''}`}
+                    onClick={() => handlePaymentBarClick(item.payment_type)}
+                    title={isPending ? 'Clic para ver detalles' : ''}
+                  >
+                    <div
+                      className={`${barColor} h-2 rounded-full transition-all`}
+                      style={{
+                        width: `${Math.min(
+                          (parseFloat(item.total_amount) / 
+                           Math.max(...paymentTypesReport.map(i => parseFloat(i.total_amount)))) * 100,
+                          100
+                        )}%`
+                      }}
+                    />
                   </div>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-green-600 h-2 rounded-full"
-                    style={{
-                      width: `${Math.min(
-                        (parseFloat(item.total_amount) / 
-                         Math.max(...paymentTypesReport.map(i => parseFloat(i.total_amount)))) * 100,
-                        100
-                      )}%`
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
+              );
+            })}
 
             {paymentTypesReport.length === 0 && (
               <p className="text-center py-8 text-gray-500">No hay datos disponibles</p>
@@ -312,6 +362,114 @@ const Reports = () => {
           <p className="text-center py-8 text-gray-500">No hay datos disponibles</p>
         )}
       </div>
+
+      {/* Modal de Pedidos Pendientes */}
+      {showPendingModal && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900">
+                  Pedidos con Pago Pendiente
+                </h2>
+                <button
+                  onClick={() => setShowPendingModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {loadingPending ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-yellow-800 font-medium">Total de pedidos pendientes</p>
+                        <p className="text-2xl font-bold text-yellow-900">{pendingOrders.length}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-yellow-800 font-medium">Monto total pendiente</p>
+                        <p className="text-2xl font-bold text-yellow-900">
+                          Bs. {pendingOrders.reduce((sum, order) => sum + parseFloat(order.total), 0).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recibo</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trabajo</th>
+                          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Estado Pago</th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {pendingOrders.map((order) => (
+                          <tr key={order.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-sm font-medium text-gray-900">
+                                #{order.receipt_number}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {new Date(order.order_date).toLocaleDateString('es-BO')}
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="text-sm font-medium text-gray-900">{order.client_name}</div>
+                              {order.client_phone && (
+                                <div className="text-sm text-gray-500">{order.client_phone}</div>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {order.work_type}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
+                              Bs. {parseFloat(order.total).toFixed(2)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPaymentStatusBadge(order.payment_status)}`}>
+                                {order.payment_status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                              <a
+                                href={`/orders/${order.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary-600 hover:text-primary-700"
+                                title="Ver detalles"
+                              >
+                                <ExternalLink className="w-5 h-5 inline" />
+                              </a>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {pendingOrders.length === 0 && (
+                    <p className="text-center py-12 text-gray-500">
+                      No hay pedidos con pago pendiente en el rango de fechas seleccionado
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
