@@ -2,6 +2,7 @@ import { validationResult } from 'express-validator';
 import pool from '../config/database.js';
 import QRCode from 'qrcode';
 import PDFDocument from 'pdfkit';
+import fs from 'fs';
 
 // Generar número de recibo único
 const generateReceiptNumber = async () => {
@@ -478,6 +479,7 @@ export const updateOrderStatus = async (req, res) => {
 export const generateReceiptPDF = async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('Generando PDF recibo para pedido:', id);
 
     // Obtener datos del pedido
     const orderResult = await pool.query(
@@ -494,8 +496,11 @@ export const generateReceiptPDF = async (req, res) => {
     );
 
     if (orderResult.rows.length === 0) {
+      console.log('Pedido no encontrado:', id);
       return res.status(404).json({ message: 'Pedido no encontrado' });
     }
+    
+    console.log('Pedido encontrado, generando PDF...');
 
     const order = orderResult.rows[0];
 
@@ -510,22 +515,35 @@ export const generateReceiptPDF = async (req, res) => {
       margin: 20 
     });
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=recibo_${order.receipt_number}.pdf`);
-
-    doc.pipe(res);
+    // Crear buffer para almacenar el PDF
+    const chunks = [];
+    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('end', () => {
+      const pdfBuffer = Buffer.concat(chunks);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=recibo_${order.receipt_number}.pdf`);
+      res.send(pdfBuffer);
+    });
 
     // Logo (si existe)
+    const logoPath = '../frontend/public/logo.jpg';
+    let yStart = 20;
     try {
-      doc.image('frontend/public/logo.jpg', 73, 20, { width: 80, align: 'center' });
-      doc.moveDown(5);
+      if (fs.existsSync(logoPath)) {
+        doc.image(logoPath, 73, yStart, { width: 80 });
+        yStart = 110;
+      } else {
+        console.log('Logo no existe en:', logoPath);
+      }
     } catch (err) {
-      console.log('Logo no encontrado, continuando sin logo');
+      console.log('Error al cargar logo:', err.message);
     }
+    
+    doc.y = yStart;
 
     // Header
     doc.fontSize(16).font('Helvetica-Bold').text('BPM', { align: 'center' });
-    doc.fontSize(9).font('Helvetica').text('"Tu mejor aliado"', { align: 'center' });
+    doc.fontSize(9).font('Helvetica-Bold').text('"Tu mejor aliado"', { align: 'center' });
     doc.fontSize(8).text('Calle Av. Santa Cruz N°1317, entre', { align: 'center' });
     doc.text('Pedro Blanco y Beni', { align: 'center' });
     doc.text('Whatsapp: 76970918', { align: 'center' });
@@ -539,22 +557,36 @@ export const generateReceiptPDF = async (req, res) => {
     // Información del recibo
     doc.fontSize(9).font('Helvetica-Bold');
     const receiptParts = order.receipt_number.match(/.{1,3}/g) || [order.receipt_number];
-    doc.text(`Cod. Recibo N°:`, 20, doc.y, { continued: true, width: 100 });
-    doc.font('Helvetica').text(`${receiptParts.join('/')}`, { align: 'right' });
+    const labelWidth = 85;
+    const valueX = 110;
     
-    doc.font('Helvetica-Bold').text(`CLIENTE:`, 20, doc.y, { continued: true, width: 100 });
-    doc.font('Helvetica').text(order.client_name.toUpperCase(), { align: 'right' });
+    // Código de recibo
+    const reciboY = doc.y;
+    doc.text(`Cod. Recibo N°:`, 20, reciboY, { width: labelWidth, align: 'left' });
+    doc.font('Helvetica').text(`${receiptParts.join('/')}`, valueX, reciboY, { align: 'left' });
+    doc.moveDown();
     
-    const fechaFormateada = new Date(order.created_at || order.order_date).toLocaleString('es-BO', {
+    // Cliente
+    const clienteY = doc.y;
+    doc.font('Helvetica-Bold').text(`CLIENTE:`, 20, clienteY, { width: labelWidth, align: 'left' });
+    doc.font('Helvetica').text(order.client_name.toUpperCase(), valueX, clienteY, { align: 'left' });
+    doc.moveDown();
+    
+    // Fecha
+    const fecha = new Date(order.created_at || order.order_date);
+    const fechaFormateada = fecha.toLocaleDateString('es-BO', {
       day: '2-digit',
       month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
+      year: 'numeric'
     });
-    doc.font('Helvetica-Bold').text(`FECHA:`, 20, doc.y, { continued: true, width: 100 });
-    doc.font('Helvetica').text(fechaFormateada, { align: 'right' });
+    const horaFormateada = fecha.toLocaleTimeString('es-BO', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    const fechaYHora = `${fechaFormateada} ${horaFormateada}`;
+    const fechaY = doc.y;
+    doc.font('Helvetica-Bold').text(`FECHA:`, 20, fechaY, { width: labelWidth, align: 'left' });
+    doc.font('Helvetica').text(fechaYHora, valueX, fechaY, { align: 'left' });
 
     doc.moveDown();
 
@@ -585,8 +617,9 @@ export const generateReceiptPDF = async (req, res) => {
     
     let y = tableTop + 15;
 
-    // Línea debajo de headers
-    doc.moveTo(20, y - 3).lineTo(206.77, y - 3).stroke();
+    // Línea debajo de headers (más espacio para que no toque las letras)
+    doc.moveTo(20, y).lineTo(206.77, y).stroke();
+    y += 5;
 
     doc.font('Helvetica');
     itemsResult.rows.forEach((item) => {
@@ -594,16 +627,19 @@ export const generateReceiptPDF = async (req, res) => {
       doc.text(item.description || '-', itemX, y, { width: 75 });
       
       // Cantidad
-      doc.text(item.quantity.toFixed(2), cantX, y, { width: 30, align: 'right' });
+      doc.text(parseFloat(item.quantity || 0).toFixed(2), cantX, y, { width: 30, align: 'right' });
       
       // Precio unitario
-      doc.text(item.unit_price.toFixed(2), precioX, y, { width: 35, align: 'right' });
+      doc.text(parseFloat(item.unit_price || 0).toFixed(2), precioX, y, { width: 35, align: 'right' });
       
       // Total del item
-      doc.text(item.total.toFixed(2), totalItemX, y, { width: 35, align: 'right' });
+      doc.text(parseFloat(item.total || 0).toFixed(2), totalItemX, y, { width: 35, align: 'right' });
       
-      y += 15;
+      y += 18; // Aumentado de 15 a 18 para dar más espacio entre items
     });
+
+    // Espacio adicional antes de la línea para que no toque el último item
+    y += 3;
 
     // Línea antes del total
     doc.moveTo(20, y).lineTo(206.77, y).stroke();
@@ -612,33 +648,37 @@ export const generateReceiptPDF = async (req, res) => {
     // Total
     doc.fontSize(10).font('Helvetica-Bold');
     doc.text('Total Bs:', 135, y, { continued: true });
-    doc.text(order.total.toFixed(2), { align: 'right' });
+    doc.text(parseFloat(order.total || 0).toFixed(2), { align: 'right' });
     
     y += 25;
 
-    // QR Code
-    if (order.qr_code) {
-      try {
-        const qrImage = order.qr_code.replace(/^data:image\/\w+;base64,/, '');
-        const qrBuffer = Buffer.from(qrImage, 'base64');
-        doc.image(qrBuffer, 63, y, { width: 100 });
-        y += 110;
-      } catch (err) {
-        console.log('Error al insertar QR:', err);
-      }
-    }
-
-    // Línea separadora final
+    // Línea separadora antes del QR
     doc.moveTo(20, y).lineTo(206.77, y).stroke();
     y += 10;
+
+    // QR Code - Generar código QR con información del pedido
+    try {
+      const qrData = `Pedido: ${order.receipt_number}\nCliente: ${order.client_name}\nTotal: Bs. ${parseFloat(order.total || 0).toFixed(2)}\nFecha: ${new Date(order.order_date).toLocaleDateString('es-BO')}`;
+      const qrImage = await QRCode.toDataURL(qrData, { width: 200, margin: 1 });
+      const qrBuffer = Buffer.from(qrImage.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+      doc.image(qrBuffer, 63, y, { width: 100, align: 'center' });
+      y += 110;
+    } catch (err) {
+      console.log('Error al generar QR:', err.message);
+      y += 10; // Espacio si falla el QR
+    }
 
     // Mensaje de agradecimiento
     doc.fontSize(9).font('Helvetica').text('¡Gracias por su compra!', 20, y, { align: 'center' });
 
     doc.end();
+    console.log('PDF generado exitosamente');
   } catch (error) {
-    console.error('Error al generar PDF:', error);
-    res.status(500).json({ message: 'Error al generar PDF' });
+    console.error('Error al generar PDF recibo:', error.message);
+    console.error('Stack:', error.stack);
+    if (!res.headersSent) {
+      res.status(500).json({ message: 'Error al generar PDF', error: error.message });
+    }
   }
 };
 
@@ -646,6 +686,7 @@ export const generateReceiptPDF = async (req, res) => {
 export const generateLabelPDF = async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('Generando PDF etiqueta para pedido:', id);
 
     // Obtener datos del pedido
     const orderResult = await pool.query(
@@ -664,9 +705,10 @@ export const generateLabelPDF = async (req, res) => {
 
     const order = orderResult.rows[0];
 
-    // Calcular metraje total para DTF
+    // Calcular metraje total para trabajos con impresión
     let metrajeDTF = 0;
-    if (order.work_type_code === '1' || order.work_type_code === '3') { // DTF o DTF+PL
+    // DTF (1), SUBLIM (2), DTF+PL (4), SUB+PL (5)
+    if (['1', '2', '4', '5'].includes(order.work_type_code)) {
       const itemsResult = await pool.query(
         'SELECT SUM(quantity) as total FROM order_items WHERE order_id = $1',
         [id]
@@ -680,30 +722,43 @@ export const generateLabelPDF = async (req, res) => {
       margin: 15 
     });
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=etiqueta_${order.receipt_number}.pdf`);
+    // Crear buffer para almacenar el PDF
+    const chunks = [];
+    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('end', () => {
+      const pdfBuffer = Buffer.concat(chunks);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=etiqueta_${order.receipt_number}.pdf`);
+      res.send(pdfBuffer);
+    });
 
-    doc.pipe(res);
-
-    // Logo
+    // Logo (más pequeño para que todo quepa en una página)
+    const logoPath = '../frontend/public/logo.jpg';
+    let yPosition = 8;
     try {
-      doc.image('frontend/public/logo.jpg', 73, 15, { width: 80, align: 'center' });
-      doc.moveDown(5);
+      if (fs.existsSync(logoPath)) {
+        doc.image(logoPath, 80, yPosition, { width: 65 }); // Reducido a 65
+        yPosition = 82; // Reducido a 82
+      } else {
+        console.log('Logo no existe en:', logoPath);
+      }
     } catch (err) {
-      console.log('Logo no encontrado, continuando sin logo');
+      console.log('Error al cargar logo:', err.message);
     }
 
     // Header
-    doc.fontSize(18).font('Helvetica-Bold').text('BPM', { align: 'center' });
-    doc.fontSize(10).font('Helvetica').text('"Tu mejor aliado"', { align: 'center' });
-    doc.moveDown();
+    doc.fontSize(15).font('Helvetica-Bold').text('BPM', 0, yPosition, { align: 'center' });
+    doc.moveDown(0.15);
+    doc.fontSize(8).font('Helvetica-Bold').text('"Tu mejor aliado"', { align: 'center' });
+    doc.moveDown(0.4);
 
     // Información del cliente
-    doc.fontSize(11).font('Helvetica-Bold');
-    doc.text('CLIENTE:', 15, doc.y, { continued: true, width: 80 });
-    doc.font('Helvetica').text(order.client_name.toUpperCase(), { align: 'right' });
+    doc.fontSize(10).font('Helvetica-Bold');
+    const clienteY = doc.y;
+    doc.text('CLIENTE:', 15, clienteY, { width: 70, align: 'left' });
+    doc.font('Helvetica').text(order.client_name.toUpperCase(), 85, clienteY, { width: 125, align: 'left' });
     
-    doc.moveDown(0.5);
+    doc.moveDown(0.3);
 
     // Fecha
     const fechaEtiqueta = new Date(order.order_date).toLocaleDateString('es-BO', {
@@ -711,22 +766,29 @@ export const generateLabelPDF = async (req, res) => {
       month: 'numeric',
       year: '2-digit'
     });
-    doc.font('Helvetica-Bold').text('FECHA:', 15, doc.y, { continued: true, width: 80 });
-    doc.font('Helvetica').text(fechaEtiqueta, { align: 'right' });
+    const fechaY = doc.y;
+    doc.font('Helvetica-Bold').text('FECHA:', 15, fechaY, { width: 70, align: 'left' });
+    doc.font('Helvetica').text(fechaEtiqueta, 85, fechaY, { width: 125, align: 'left' });
     
-    doc.moveDown(1);
+    doc.moveDown(0.7);
 
-    // Metraje DTF (si aplica)
-    if (order.work_type_code === '1' || order.work_type_code === '3') {
-      doc.fontSize(10).font('Helvetica-Bold').text('METRAJE DTF:', { align: 'center' });
-      doc.moveDown(0.5);
-      doc.fontSize(40).font('Helvetica-Bold').text(metrajeDTF.toFixed(2), { align: 'center' });
+    // Metraje - SOLO para pedidos con impresión (DTF, SUBLIM, DTF+PL, SUB+PL)
+    if (['1', '2', '4', '5'].includes(order.work_type_code)) {
+      doc.fontSize(12).font('Helvetica-Bold').text('METRAJE:', 15, doc.y, { width: 196.77, align: 'center' });
+      doc.moveDown(0.2);
+      doc.fontSize(50).font('Helvetica-Bold').text(metrajeDTF.toFixed(2), 15, doc.y, { width: 196.77, align: 'center' });
+      doc.moveDown(0.2);
+      doc.fontSize(10).font('Helvetica').text('metros', 15, doc.y, { width: 196.77, align: 'center' });
     }
 
     doc.end();
+    console.log('Etiqueta PDF generada exitosamente');
   } catch (error) {
-    console.error('Error al generar etiqueta:', error);
-    res.status(500).json({ message: 'Error al generar etiqueta' });
+    console.error('Error al generar PDF etiqueta:', error.message);
+    console.error('Stack:', error.stack);
+    if (!res.headersSent) {
+      res.status(500).json({ message: 'Error al generar etiqueta', error: error.message });
+    }
   }
 };
 

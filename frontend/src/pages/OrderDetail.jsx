@@ -42,6 +42,27 @@ const OrderDetail = () => {
     }
   };
 
+  const downloadPDF = async (type) => {
+    try {
+      const endpoint = type === 'receipt' ? `/orders/${id}/pdf` : `/orders/${id}/label`;
+      const response = await api.get(endpoint, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${type}_${id}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error al descargar PDF:', error);
+      toast.error('Error al descargar el PDF');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -96,24 +117,23 @@ const OrderDetail = () => {
         </div>
 
         <div className="flex items-center space-x-3">
-          <a
-            href={`/api/orders/${id}/pdf`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => downloadPDF('receipt')}
             className="btn btn-secondary inline-flex items-center space-x-2"
           >
-            <Download className="w-5 h-5" />
+            <Download className="w-4 h-4" />
             <span>Recibo</span>
-          </a>
-          <a
-            href={`/api/orders/${id}/label`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-secondary inline-flex items-center space-x-2"
-          >
-            <Tag className="w-5 h-5" />
-            <span>Etiqueta</span>
-          </a>
+          </button>
+          {/* Etiqueta solo para pedidos con impresión (DTF, SUBLIM, DTF+PL, SUB+PL) */}
+          {order.work_type_id && [1, 2, 4, 5].includes(order.work_type_id) && (
+            <button
+              onClick={() => downloadPDF('label')}
+              className="btn btn-secondary inline-flex items-center space-x-2"
+            >
+              <Tag className="w-4 h-4" />
+              <span>Etiqueta</span>
+            </button>
+          )}
           {order.status !== 'cancelado' && (
             <>
               <Link
@@ -171,7 +191,7 @@ const OrderDetail = () => {
             <h3 className="font-semibold text-gray-900">Total</h3>
           </div>
           <p className="text-2xl font-bold text-gray-900">
-            Bs. {order.total.toFixed(2)}
+            Bs. {parseFloat(order.total || 0).toFixed(2)}
           </p>
         </div>
       </div>
@@ -288,7 +308,7 @@ const OrderDetail = () => {
             <div className="text-right">
               <p className="text-sm text-gray-600 mb-1">TOTAL DEL PEDIDO</p>
               <p className="text-3xl font-bold text-gray-900">
-                Bs. {order.total.toFixed(2)}
+                Bs. {parseFloat(order.total || 0).toFixed(2)}
               </p>
             </div>
           </div>

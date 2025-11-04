@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Plus, Search, Filter, Eye, Download } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Download, Tag } from 'lucide-react';
 
 const Orders = () => {
   const [orders, setOrders] = useState([]);
@@ -14,6 +14,27 @@ const Orders = () => {
   useEffect(() => {
     fetchOrders();
   }, [statusFilter, paymentFilter]);
+
+  const downloadPDF = async (orderId, type) => {
+    try {
+      const endpoint = type === 'receipt' ? `/orders/${orderId}/pdf` : `/orders/${orderId}/label`;
+      const response = await api.get(endpoint, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${type}_${orderId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error al descargar PDF:', error);
+      toast.error('Error al descargar el PDF');
+    }
+  };
 
   const fetchOrders = async () => {
     try {
@@ -189,7 +210,7 @@ const Orders = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-semibold text-gray-900">
-                      Bs. {order.total.toFixed(2)}
+                      Bs. {parseFloat(order.total || 0).toFixed(2)}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -211,15 +232,23 @@ const Orders = () => {
                       >
                         <Eye className="w-5 h-5" />
                       </Link>
-                      <a
-                        href={`/api/orders/${order.id}/pdf`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        onClick={() => downloadPDF(order.id, 'receipt')}
                         className="text-green-600 hover:text-green-900"
-                        title="Descargar PDF"
+                        title="Descargar Recibo"
                       >
                         <Download className="w-5 h-5" />
-                      </a>
+                      </button>
+                      {/* Etiqueta solo para pedidos con impresión (DTF, SUBLIM, DTF+PL, SUB+PL) */}
+                      {order.work_type_id && [1, 2, 4, 5].includes(order.work_type_id) && (
+                        <button
+                          onClick={() => downloadPDF(order.id, 'label')}
+                          className="text-blue-600 hover:text-blue-900"
+                          title="Descargar Etiqueta"
+                        >
+                          <Tag className="w-5 h-5" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
