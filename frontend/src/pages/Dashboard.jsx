@@ -94,6 +94,30 @@ const Dashboard = () => {
       color: ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b'][idx % 4]
     }));
 
+  // Obtener ventas en Bs por tipo de trabajo
+  const getWorkTypeSales = (workType) => {
+    const data = dashboard?.sales_by_work_type?.find(item => item.work_type === workType);
+    return parseFloat(data?.total_amount || 0);
+  };
+
+  // Obtener cantidad de pedidos por tipo de trabajo
+  const getWorkTypeOrders = (workType) => {
+    const data = dashboard?.sales_by_work_type?.find(item => item.work_type === workType);
+    return parseInt(data?.total_orders || 0);
+  };
+
+  const dtfSales = getWorkTypeSales('DTF');
+  const dtfOrders = getWorkTypeOrders('DTF');
+  
+  const insigSales = getWorkTypeSales('INSIG-T');
+  const insigOrders = getWorkTypeOrders('INSIG-T');
+  
+  const dtfPlusSales = getWorkTypeSales('DTF+PL');
+  const dtfPlusOrders = getWorkTypeOrders('DTF+PL');
+  
+  const sublimSales = getWorkTypeSales('SUBLIM');
+  const sublimOrders = getWorkTypeOrders('SUBLIM');
+
   const COLORS = {
     'Ventas Pagadas': '#10b981',
     'Ventas Pendientes': '#f59e0b'
@@ -122,6 +146,57 @@ const Dashboard = () => {
         })}
       </div>
 
+      {/* Metas por Tipo de Servicio */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* DTF */}
+        <div className="card">
+          <div className="flex items-center space-x-2 mb-4">
+            <Target className="w-4 h-4 text-blue-600" />
+            <h3 className="text-base font-semibold text-gray-900">DTF</h3>
+          </div>
+          <SalesGauge current={dtfSales} target={3000} type="dinero" />
+          <div className="mt-4 text-center text-sm text-gray-600">
+            <p className="font-semibold text-blue-600">{dtfOrders} pedidos</p>
+          </div>
+        </div>
+
+        {/* INSIG-T */}
+        <div className="card">
+          <div className="flex items-center space-x-2 mb-4">
+            <Target className="w-4 h-4 text-orange-600" />
+            <h3 className="text-base font-semibold text-gray-900">INSIG-T</h3>
+          </div>
+          <SalesGauge current={insigSales} target={3000} type="dinero" />
+          <div className="mt-4 text-center text-sm text-gray-600">
+            <p className="font-semibold text-orange-600">{insigOrders} pedidos</p>
+          </div>
+        </div>
+
+        {/* DTF+ */}
+        <div className="card">
+          <div className="flex items-center space-x-2 mb-4">
+            <Target className="w-4 h-4 text-purple-600" />
+            <h3 className="text-base font-semibold text-gray-900">DTF+</h3>
+          </div>
+          <SalesGauge current={dtfPlusSales} target={3000} type="dinero" />
+          <div className="mt-4 text-center text-sm text-gray-600">
+            <p className="font-semibold text-purple-600">{dtfPlusOrders} pedidos</p>
+          </div>
+        </div>
+
+        {/* SUBLIM */}
+        <div className="card">
+          <div className="flex items-center space-x-2 mb-4">
+            <Target className="w-4 h-4 text-pink-600" />
+            <h3 className="text-base font-semibold text-gray-900">SUBLIM</h3>
+          </div>
+          <SalesGauge current={sublimSales} target={3000} type="dinero" />
+          <div className="mt-4 text-center text-sm text-gray-600">
+            <p className="font-semibold text-pink-600">{sublimOrders} pedidos</p>
+          </div>
+        </div>
+      </div>
+
       {/* Meta de Ventas y Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Medidor de Meta Mensual */}
@@ -140,23 +215,33 @@ const Dashboard = () => {
         {/* Gráfico de Ventas */}
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Resumen de Ventas del Mes</h3>
-          <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer width="100%" height={240}>
             <PieChart>
               <Pie
                 data={salesData}
                 cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                cy="45%"
                 outerRadius={80}
                 fill="#8884d8"
                 dataKey="value"
+                label={false}
               >
                 {salesData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
               <Tooltip formatter={(value) => `Bs. ${value.toFixed(2)}`} />
+              <Legend 
+                verticalAlign="bottom" 
+                height={36}
+                iconType="circle"
+                formatter={(value, entry) => {
+                  const dataEntry = salesData.find(d => d.name === value);
+                  const total = salesData.reduce((sum, item) => sum + item.value, 0);
+                  const percent = total > 0 ? ((dataEntry?.value || 0) / total * 100).toFixed(0) : 0;
+                  return `${value} (${percent}%)`;
+                }}
+              />
             </PieChart>
           </ResponsiveContainer>
           <div className="grid grid-cols-2 gap-4 mt-4 text-center">
@@ -296,7 +381,7 @@ const Dashboard = () => {
             className="flex items-center justify-center space-x-2 p-4 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 transition-colors"
           >
             <Clock className="w-5 h-5" />
-            <span className="font-medium">Ver Productos</span>
+            <span className="font-medium">Ver Almacén</span>
           </Link>
         </div>
       </div>

@@ -3,9 +3,12 @@ import pool from '../config/database.js';
 // Obtener todos los rollos
 export const getAllRollos = async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT 
+    const { tipo } = req.query; // Filtrar por tipo si se proporciona
+    
+    let query = `
+      SELECT 
         numero_rollo,
+        tipo,
         metraje_total,
         metraje_disponible,
         metraje_usado,
@@ -15,8 +18,17 @@ export const getAllRollos = async (req, res) => {
         notas,
         ROUND((metraje_disponible / metraje_total * 100), 2) as porcentaje_disponible
        FROM rollos
-       ORDER BY numero_rollo ASC`
-    );
+    `;
+    
+    const params = [];
+    if (tipo) {
+      query += ` WHERE tipo = $1`;
+      params.push(tipo);
+    }
+    
+    query += ` ORDER BY tipo ASC, numero_rollo ASC`;
+    
+    const result = await pool.query(query, params);
 
     res.json(result.rows);
   } catch (error) {
@@ -102,17 +114,17 @@ export const verificarDisponibilidad = async (req, res) => {
 // Descontar metraje de un rollo
 export const descontarMetraje = async (req, res) => {
   try {
-    const { numero_rollo, metraje, order_id, notas } = req.body;
+    const { numero_rollo, tipo, metraje, order_id, notas } = req.body;
 
-    if (!numero_rollo || !metraje) {
+    if (!numero_rollo || !tipo || !metraje) {
       return res.status(400).json({ 
-        message: 'Número de rollo y metraje son obligatorios' 
+        message: 'Número de rollo, tipo y metraje son obligatorios' 
       });
     }
 
     const result = await pool.query(
-      `SELECT * FROM descontar_metraje_rollo($1, $2, $3, $4, $5)`,
-      [numero_rollo, metraje, order_id, req.user.id, notas]
+      `SELECT * FROM descontar_metraje_rollo($1, $2, $3, $4, $5, $6)`,
+      [numero_rollo, tipo, metraje, order_id, req.user.id, notas]
     );
 
     const response = result.rows[0];
@@ -135,30 +147,92 @@ export const descontarMetraje = async (req, res) => {
   }
 };
 
-// Restablecer un rollo (reemplazo)
-export const restablecerRollo = async (req, res) => {
+// Actualizar metraje total de un rollo manualmente
+export const actualizarMetrajeTotal = async (req, res) => {
   try {
-    const { numero_rollo, notas } = req.body;
+    const { numero_rollo, tipo, metraje_total, notas } = req.body;
 
-    if (!numero_rollo) {
+    if (!numero_rollo || !tipo || !metraje_total) {
       return res.status(400).json({ 
-        message: 'Número de rollo es obligatorio' 
+        message: 'Número de rollo, tipo y metraje total son obligatorios' 
       });
     }
 
-    await pool.query(
-      'SELECT restablecer_rollo($1, $2, $3)',
-      [numero_rollo, req.user.id, notas || 'Rollo reemplazado']
+    // Actualizar metraje total y disponible
+    const result = await pool.query(
+      `UPDATE rollos 
+       SET metraje_total = $1,
+           metraje_disponible = $1,
+           metraje_usado = 0,
+           notas = $2,
+           fecha_instalacion = NOW(),
+           ultima_actualizacion = NOW()
+       WHERE numero_rollo = $3 AND tipo = $4
+       RETURNING *`,
+      [metraje_total, notas || `Rollo ${tipo} instalado con ${metraje_total}m`, numero_rollo, tipo]
     );
 
-    const result = await pool.query(
-      'SELECT * FROM rollos WHERE numero_rollo = $1',
-      [numero_rollo]
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Rollo no encontrado' });
+    }
+
+    // Registrar en historial
+    await pool.query(
+      `INSERT INTO rollo_historial (numero_rollo, tipo_rollo, metraje_usado, orden_tipo, usuario_id, notas)
+       VALUES ($1, $2, 0, 'INSTALACION', $3, $4)`,
+      [numero_rollo, tipo, req.user.id, notas || `Rollo ${tipo} instalado con ${metraje_total}m`]
     );
 
     res.json({
       success: true,
-      mensaje: `Rollo ${numero_rollo} restablecido a 105 metros`,
+      mensaje: `Rollo ${tipo} ${numero_rollo} configurado con ${metraje_total} metros`,
+      rollo: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error al actualizar metraje:', error);
+    res.status(500).json({ message: 'Error en el servidor' });
+  }
+};
+
+// Restablecer un rollo (reemplazo)
+export const restablecerRollo = async (req, res) => {
+  try {
+    const { numero_rollo, metraje_total, notas } = req.body;
+
+    if (!numero_rollo || !metraje_total) {
+      return res.status(400).json({ 
+        message: 'Número de rollo y metraje total son obligatorios' 
+      });
+    }
+
+    // Restablecer usando la nueva cantidad especificada
+    const result = await pool.query(
+      `UPDATE rollos 
+       SET metraje_total = $1,
+           metraje_disponible = $1,
+           metraje_usado = 0,
+           notas = $2,
+           fecha_instalacion = NOW(),
+           ultima_actualizacion = NOW()
+       WHERE numero_rollo = $3
+       RETURNING *`,
+      [metraje_total, notas || `Rollo reemplazado con ${metraje_total}m`, numero_rollo]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Rollo no encontrado' });
+    }
+
+    // Registrar en historial
+    await pool.query(
+      `INSERT INTO rollo_historial (numero_rollo, metraje_usado, orden_tipo, usuario_id, notas)
+       VALUES ($1, 0, 'REEMPLAZO', $2, $3)`,
+      [numero_rollo, req.user.id, notas || `Rollo reemplazado con ${metraje_total}m`]
+    );
+
+    res.json({
+      success: true,
+      mensaje: `Rollo ${numero_rollo} restablecido con ${metraje_total} metros`,
       rollo: result.rows[0]
     });
   } catch (error) {

@@ -9,6 +9,7 @@ import OrderForm from './pages/OrderForm';
 import OrderDetail from './pages/OrderDetail';
 import Clients from './pages/Clients';
 import Products from './pages/Products';
+import Rollos from './pages/Rollos';
 import Reports from './pages/Reports';
 import Users from './pages/Users';
 import Settings from './pages/Settings';
@@ -32,6 +33,7 @@ function App() {
             <Route path="orders/:id/edit" element={<OrderForm />} />
             <Route path="clients" element={<Clients />} />
             <Route path="products" element={<Products />} />
+            <Route path="rollos" element={<Rollos />} />
             <Route path="reports" element={<Reports />} />
             <Route path="users" element={<Users />} />
             <Route path="settings" element={<Settings />} />

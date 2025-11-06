@@ -33,17 +33,21 @@ export const getDashboard = async (req, res) => {
         AND status != 'cancelado'
     `);
 
-    // Pedidos pendientes de pago (todos)
+    // Pedidos pendientes o parciales (no completamente pagados)
     const pendingPayments = await pool.query(`
-      SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as amount
+      SELECT 
+        COUNT(*) as count, 
+        COALESCE(SUM(total - COALESCE(monto_pagado, 0)), 0) as amount
       FROM orders
       WHERE payment_status IN ('pendiente', 'parcial')
         AND status = 'activo'
     `);
 
-    // Pedidos pendientes del mes actual
+    // Pedidos pendientes o parciales del mes actual
     const monthPendingPayments = await pool.query(`
-      SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as amount
+      SELECT 
+        COUNT(*) as count, 
+        COALESCE(SUM(total - COALESCE(monto_pagado, 0)), 0) as amount
       FROM orders
       WHERE payment_status IN ('pendiente', 'parcial')
         AND status = 'activo'

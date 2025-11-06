@@ -22,6 +22,9 @@ router.post('/verificar-disponibilidad', rolloController.verificarDisponibilidad
 // Descontar metraje
 router.post('/descontar', rolloController.descontarMetraje);
 
+// Actualizar metraje total manualmente
+router.put('/actualizar-metraje', rolloController.actualizarMetrajeTotal);
+
 // Restablecer rollo (reemplazo)
 router.post('/restablecer', rolloController.restablecerRollo);
 

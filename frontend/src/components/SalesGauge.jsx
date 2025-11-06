@@ -26,10 +26,18 @@ const getColor = (pct) => {
   }
 };
 
-const SalesGauge = ({ current, target = 400 }) => {
+const SalesGauge = ({ current, target = 400, type = 'pedidos' }) => {
   const percentage = Math.min((current / target) * 100, 100);
   
   const color = getColor(percentage);
+  
+  // Formatear valores según el tipo
+  const formatValue = (value) => {
+    if (type === 'dinero') {
+      return `Bs. ${value.toFixed(2)}`;
+    }
+    return value;
+  };
   
   // Crear el gradiente para el arco
   const gradientStops = [];
@@ -136,10 +144,10 @@ const SalesGauge = ({ current, target = 400 }) => {
       {/* Información */}
       <div className="text-center mt-4">
         <div className="text-4xl font-bold" style={{ color }}>
-          {current}
+          {type === 'dinero' ? current.toFixed(0) : current}
         </div>
         <div className="text-sm text-gray-500 mt-1">
-          de {target} pedidos
+          de {formatValue(target)}
         </div>
         <div className="text-lg font-semibold mt-2" style={{ color }}>
           {percentage.toFixed(1)}%

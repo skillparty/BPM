@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Download, Edit, Trash2, Calendar, User, DollarSign, Tag, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Download, Trash2, Calendar, User, DollarSign, Tag, MessageCircle } from 'lucide-react';
 import QRCode from 'react-qr-code';
 
 const OrderDetail = () => {
@@ -186,22 +186,13 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
             <span>Enviar WhatsApp</span>
           </button>
           {order.status !== 'cancelado' && (
-            <>
-              <Link
-                to={`/orders/${id}/edit`}
-                className="btn btn-primary inline-flex items-center space-x-2"
-              >
-                <Edit className="w-5 h-5" />
-                <span>Editar</span>
-              </Link>
-              <button
-                onClick={handleDelete}
-                className="btn btn-danger inline-flex items-center space-x-2"
-              >
-                <Trash2 className="w-5 h-5" />
-                <span>Cancelar</span>
-              </button>
-            </>
+            <button
+              onClick={handleDelete}
+              className="btn btn-danger inline-flex items-center space-x-2"
+            >
+              <Trash2 className="w-5 h-5" />
+              <span>Cancelar</span>
+            </button>
           )}
         </div>
       </div>

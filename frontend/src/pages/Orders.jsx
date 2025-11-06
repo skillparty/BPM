@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Plus, Search, Filter, Eye, Download, Tag, MessageCircle } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Download, Tag, MessageCircle, Printer, CreditCard } from 'lucide-react';
+import PartialPaymentsModal from '../components/PartialPaymentsModal';
 
 const Orders = () => {
   const [orders, setOrders] = useState([]);
@@ -10,6 +11,8 @@ const Orders = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('');
+  const [showPaymentsModal, setShowPaymentsModal] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
 
   useEffect(() => {
     fetchOrders();
@@ -42,6 +45,47 @@ const Orders = () => {
     } catch (error) {
       console.error('Error al descargar archivo:', error);
       toast.error('Error al descargar el archivo');
+    }
+  };
+
+  const printPDF = (orderId, type) => {
+    try {
+      let endpoint;
+      
+      if (type === 'receipt') {
+        endpoint = `/orders/${orderId}/pdf`;
+      } else if (type === 'label') {
+        endpoint = `/orders/${orderId}/label`;
+      }
+      
+      // Obtener token de autenticación
+      const token = localStorage.getItem('token');
+      
+      // Construir URL completa con token
+      const baseURL = window.location.origin; // http://localhost:5089
+      const fullURL = `${baseURL}/api${endpoint}`;
+      
+      // Abrir en nueva pestaña con token en header (usando fetch para incluir headers)
+      const printWindow = window.open('', '_blank');
+      
+      fetch(fullURL, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .then(response => response.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        printWindow.location.href = url;
+      })
+      .catch(error => {
+        console.error('Error al cargar PDF:', error);
+        printWindow.close();
+        toast.error('Error al abrir el documento para imprimir');
+      });
+    } catch (error) {
+      console.error('Error al imprimir:', error);
+      toast.error('Error al abrir el documento para imprimir');
     }
   };
 
@@ -240,7 +284,7 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-700 font-medium">
-                      {order.order_day || '-'}
+                      {new Date(order.order_date).toLocaleDateString('es-BO', { weekday: 'long' })}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -275,6 +319,41 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
                       >
                         <Eye className="w-5 h-5" />
                       </Link>
+                      
+                      {/* Botón Gestionar Pagos - para pedidos pendientes o parciales */}
+                      {(order.payment_status === 'pendiente' || order.payment_status === 'parcial') && (
+                        <button
+                          onClick={() => {
+                            setSelectedOrder(order);
+                            setShowPaymentsModal(true);
+                          }}
+                          className="text-blue-600 hover:text-blue-900"
+                          title="Gestionar Pagos"
+                        >
+                          <CreditCard className="w-5 h-5" />
+                        </button>
+                      )}
+                      
+                      {/* Botón Imprimir Recibo */}
+                      <button
+                        onClick={() => printPDF(order.id, 'receipt')}
+                        className="text-purple-600 hover:text-purple-900"
+                        title="Imprimir Recibo"
+                      >
+                        <Printer className="w-5 h-5" />
+                      </button>
+                      
+                      {/* Botón Imprimir Ticket/Etiqueta - solo para DTF, SUBLIM, DTF+PL, SUB+PL */}
+                      {order.work_type_id && [1, 2, 4, 5].includes(order.work_type_id) && (
+                        <button
+                          onClick={() => printPDF(order.id, 'label')}
+                          className="text-orange-600 hover:text-orange-900"
+                          title="Imprimir Ticket"
+                        >
+                          <Tag className="w-5 h-5" />
+                        </button>
+                      )}
+                      
                       <button
                         onClick={() => downloadPDF(order.id, 'receipt')}
                         className="text-green-600 hover:text-green-900"
@@ -282,16 +361,7 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
                       >
                         <Download className="w-5 h-5" />
                       </button>
-                      {/* Etiqueta solo para pedidos con impresión (DTF, SUBLIM, DTF+PL, SUB+PL) */}
-                      {order.work_type_id && [1, 2, 4, 5].includes(order.work_type_id) && (
-                        <button
-                          onClick={() => downloadPDF(order.id, 'label')}
-                          className="text-blue-600 hover:text-blue-900"
-                          title="Descargar Etiqueta"
-                        >
-                          <Tag className="w-5 h-5" />
-                        </button>
-                      )}
+                      
                       <button
                         onClick={() => sendWhatsAppQR(order)}
                         className="text-green-600 hover:text-green-900"
@@ -313,6 +383,21 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
           </div>
         )}
       </div>
+
+      {/* Modal de Pagos Parciales */}
+      {showPaymentsModal && selectedOrder && (
+        <PartialPaymentsModal
+          orderId={selectedOrder.id}
+          orderTotal={selectedOrder.total}
+          onClose={() => {
+            setShowPaymentsModal(false);
+            setSelectedOrder(null);
+          }}
+          onPaymentAdded={() => {
+            fetchOrders(); // Recargar lista de pedidos
+          }}
+        />
+      )}
     </div>
   );
 };

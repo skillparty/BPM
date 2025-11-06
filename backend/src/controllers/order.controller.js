@@ -217,14 +217,17 @@ export const createOrder = async (req, res) => {
       client_name,
       order_date,
       work_type_id,
-      numero_rollo,
       description,
       items,
       payment_type_id,
       bank_id,
-      payment_status = 'pendiente',
       notes
     } = req.body;
+
+    // El payment_status siempre inicia como 'pendiente'
+    // Se cambiará a 'pagado' cuando el usuario registre el pago completo
+    // o a 'parcial' cuando registre pagos parciales
+    const payment_status = 'pendiente';
 
     // Generar número de recibo
     const receiptNumber = await generateReceiptNumber();
@@ -240,42 +243,55 @@ export const createOrder = async (req, res) => {
     const orderResult = await client.query(
       `INSERT INTO orders (
         receipt_number, client_phone, client_name, order_date, work_type_id,
-        numero_rollo, description, subtotal, total, payment_type_id, bank_id, 
+        description, subtotal, total, payment_type_id, bank_id, 
         payment_status, qr_code, notes, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *`,
       [
         receiptNumber, client_phone, client_name, order_date || new Date(),
-        work_type_id, numero_rollo, description, subtotal, total, payment_type_id,
+        work_type_id, description, subtotal, total, payment_type_id,
         bank_id, payment_status, qrCode, notes, req.user.id
       ]
     );
 
     const order = orderResult.rows[0];
 
-    // Insertar items con los 3 módulos
+    // Insertar items
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
+      
+      // Construir descripción con los módulos utilizados
+      let descripcionPartes = [];
+      let quantity = 0;
+      let mainQuantity = 0;
+      
+      if (item.useImpresion && item.impresion_metraje) {
+        descripcionPartes.push(`Impresión: ${item.impresion_metraje}m`);
+        mainQuantity = parseFloat(item.impresion_metraje);
+      }
+      if (item.usePlanchado && item.planchado_cantidad) {
+        descripcionPartes.push(`Planchado: ${item.planchado_cantidad} uds`);
+        if (!mainQuantity) mainQuantity = parseFloat(item.planchado_cantidad);
+      }
+      if (item.useInsignia && item.insignia_cantidad) {
+        descripcionPartes.push(`Insignias: ${item.insignia_cantidad} uds`);
+        if (!mainQuantity) mainQuantity = parseFloat(item.insignia_cantidad);
+      }
+      
+      const descripcion = descripcionPartes.join(' | ');
+      quantity = mainQuantity || 1;
+      const unitPrice = quantity > 0 ? (item.total / quantity) : item.total;
+      
       await client.query(
         `INSERT INTO order_items (
-          order_id, item_number, 
-          impresion_metraje, impresion_costo, impresion_subtotal,
-          planchado_cantidad, planchado_costo, planchado_subtotal,
-          insignia_cantidad, insignia_costo, insignia_subtotal,
-          total
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          order_id, item_number, description, quantity, unit_price, total
+        ) VALUES ($1, $2, $3, $4, $5, $6)`,
         [
           order.id,
           i + 1,
-          item.useImpresion ? (item.impresion_metraje || 0) : 0,
-          item.useImpresion ? (item.impresion_costo || 0) : 0,
-          item.useImpresion ? (item.impresion_subtotal || 0) : 0,
-          item.usePlanchado ? (item.planchado_cantidad || 0) : 0,
-          item.usePlanchado ? (item.planchado_costo || 0) : 0,
-          item.usePlanchado ? (item.planchado_subtotal || 0) : 0,
-          item.useInsignia ? (item.insignia_cantidad || 0) : 0,
-          item.useInsignia ? (item.insignia_costo || 0) : 0,
-          item.useInsignia ? (item.insignia_subtotal || 0) : 0,
+          descripcion || 'Item',
+          quantity,
+          unitPrice,
           item.total || 0
         ]
       );
@@ -329,9 +345,7 @@ export const updateOrder = async (req, res) => {
     const {
       client_phone,
       client_name,
-      order_day,
       work_type_id,
-      numero_rollo,
       description,
       items,
       payment_type_id,
@@ -352,20 +366,18 @@ export const updateOrder = async (req, res) => {
       `UPDATE orders
        SET client_phone = COALESCE($1, client_phone),
            client_name = COALESCE($2, client_name),
-           order_day = COALESCE($3, order_day),
-           work_type_id = COALESCE($4, work_type_id),
-           numero_rollo = COALESCE($5, numero_rollo),
-           description = COALESCE($6, description),
-           subtotal = COALESCE($7, subtotal),
-           total = COALESCE($8, total),
-           payment_type_id = COALESCE($9, payment_type_id),
-           bank_id = COALESCE($10, bank_id),
-           payment_status = COALESCE($11, payment_status),
-           notes = COALESCE($12, notes)
-       WHERE id = $13
+           work_type_id = COALESCE($3, work_type_id),
+           description = COALESCE($4, description),
+           subtotal = COALESCE($5, subtotal),
+           total = COALESCE($6, total),
+           payment_type_id = COALESCE($7, payment_type_id),
+           bank_id = COALESCE($8, bank_id),
+           payment_status = COALESCE($9, payment_status),
+           notes = COALESCE($10, notes)
+       WHERE id = $11
        RETURNING *`,
       [
-        client_phone, client_name, order_day, work_type_id, numero_rollo, description, 
+        client_phone, client_name, work_type_id, description, 
         subtotal, total, payment_type_id, bank_id, payment_status, notes, id
       ]
     );
@@ -380,29 +392,42 @@ export const updateOrder = async (req, res) => {
       // Eliminar items existentes
       await client.query('DELETE FROM order_items WHERE order_id = $1', [id]);
 
-      // Insertar nuevos items con los 3 módulos
+      // Insertar nuevos items
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
+        
+        // Construir descripción con los módulos utilizados
+        let descripcionPartes = [];
+        let quantity = 0;
+        let mainQuantity = 0;
+        
+        if (item.useImpresion && item.impresion_metraje) {
+          descripcionPartes.push(`Impresión: ${item.impresion_metraje}m`);
+          mainQuantity = parseFloat(item.impresion_metraje);
+        }
+        if (item.usePlanchado && item.planchado_cantidad) {
+          descripcionPartes.push(`Planchado: ${item.planchado_cantidad} uds`);
+          if (!mainQuantity) mainQuantity = parseFloat(item.planchado_cantidad);
+        }
+        if (item.useInsignia && item.insignia_cantidad) {
+          descripcionPartes.push(`Insignias: ${item.insignia_cantidad} uds`);
+          if (!mainQuantity) mainQuantity = parseFloat(item.insignia_cantidad);
+        }
+        
+        const descripcion = descripcionPartes.join(' | ');
+        quantity = mainQuantity || 1;
+        const unitPrice = quantity > 0 ? (item.total / quantity) : item.total;
+        
         await client.query(
           `INSERT INTO order_items (
-            order_id, item_number, 
-            impresion_metraje, impresion_costo, impresion_subtotal,
-            planchado_cantidad, planchado_costo, planchado_subtotal,
-            insignia_cantidad, insignia_costo, insignia_subtotal,
-            total
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+            order_id, item_number, description, quantity, unit_price, total
+          ) VALUES ($1, $2, $3, $4, $5, $6)`,
           [
             id,
             i + 1,
-            item.useImpresion ? (item.impresion_metraje || 0) : 0,
-            item.useImpresion ? (item.impresion_costo || 0) : 0,
-            item.useImpresion ? (item.impresion_subtotal || 0) : 0,
-            item.usePlanchado ? (item.planchado_cantidad || 0) : 0,
-            item.usePlanchado ? (item.planchado_costo || 0) : 0,
-            item.usePlanchado ? (item.planchado_subtotal || 0) : 0,
-            item.useInsignia ? (item.insignia_cantidad || 0) : 0,
-            item.useInsignia ? (item.insignia_costo || 0) : 0,
-            item.useInsignia ? (item.insignia_subtotal || 0) : 0,
+            descripcion || 'Item',
+            quantity,
+            unitPrice,
             item.total || 0
           ]
         );

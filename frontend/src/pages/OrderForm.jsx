@@ -73,22 +73,31 @@ const OrderForm = () => {
 
   const fetchCatalogs = async () => {
     try {
-      const [workTypesRes, paymentTypesRes, banksRes, clientsRes, rollosRes] = await Promise.all([
+      const [workTypesRes, paymentTypesRes, banksRes, clientsRes] = await Promise.all([
         api.get('/payments/work-types'),
         api.get('/payments/types'),
         api.get('/payments/banks'),
-        api.get('/clients'),
-        api.get('/rollos')
+        api.get('/clients')
       ]);
 
       setWorkTypes(workTypesRes.data);
       setPaymentTypes(paymentTypesRes.data);
       setBanks(banksRes.data);
       setClients(clientsRes.data.clients || []);
-      setRollos(rollosRes.data || []);
     } catch (error) {
       console.error('Error al cargar catálogos:', error);
       toast.error('Error al cargar los datos del formulario');
+    }
+  };
+
+  // Función para cargar rollos según el tipo de trabajo
+  const fetchRollosPorTipo = async (tipo) => {
+    try {
+      const response = await api.get(`/rollos?tipo=${tipo}`);
+      setRollos(response.data || []);
+    } catch (error) {
+      console.error('Error al cargar rollos:', error);
+      setRollos([]);
     }
   };
 
@@ -189,14 +198,29 @@ const OrderForm = () => {
         const workTypeName = selectedWorkType.name.toUpperCase();
         const workTypeCode = selectedWorkType.code;
         
-        // Verificar si es sublimación para control de rollos
-        const esSublim = workTypeCode === '2' || workTypeName === 'SUBLIM';
-        setIsSublimacion(esSublim);
+        // Verificar si requiere control de rollos: DTF, SUBLIM, DTF+PL, SUB+PL
+        const requiereRollo = ['1', '2', '4', '5'].includes(workTypeCode) || 
+                             ['DTF', 'SUBLIM', 'DTF+PL', 'SUB+PL'].includes(workTypeName);
+        setIsSublimacion(requiereRollo);
+        
+        // Determinar tipo de rollo y cargar rollos correspondientes
+        if (requiereRollo) {
+          let tipoRollo = 'SUBLIM'; // Por defecto SUBLIM
+          
+          // Si es DTF o DTF+PL, usar rollos DTF
+          if (['DTF', 'DTF+PL'].includes(workTypeName) || ['1', '4'].includes(workTypeCode)) {
+            tipoRollo = 'DTF';
+          }
+          
+          fetchRollosPorTipo(tipoRollo);
+        } else {
+          setRollos([]);
+        }
         
         // Determinar qué módulos están habilitados según el tipo de trabajo
         let nuevosModulos = { impresion: true, planchado: true, insignia: true };
         
-        // DTF (1), SUBLIM (2), DTF+PL (4) → Solo Impresión y Planchado
+        // DTF (1), SUBLIM (2), DTF+PL (4), SUB+PL (5) → Solo Impresión y Planchado
         if (['DTF', 'SUBLIM', 'DTF+PL', 'SUB+PL'].includes(workTypeName) || 
             ['1', '2', '4', '5'].includes(workTypeCode)) {
           nuevosModulos = { impresion: true, planchado: true, insignia: false };
@@ -205,6 +229,10 @@ const OrderForm = () => {
         else if (['INSIG-T', 'INS+PL'].includes(workTypeName) || 
                  ['6', '7'].includes(workTypeCode)) {
           nuevosModulos = { impresion: false, planchado: true, insignia: true };
+        }
+        // PLANCH (3) → Solo Planchado
+        else if (workTypeName === 'PLANCH' || workTypeCode === '3') {
+          nuevosModulos = { impresion: false, planchado: true, insignia: false };
         }
         
         setModulosHabilitados(nuevosModulos);
@@ -365,27 +393,31 @@ const OrderForm = () => {
       return;
     }
 
-    // Validación especial para sublimación con metraje
-    if (isSublimacion && metrajeTotalRequerido > 0) {
+    // Validación especial para trabajos que requieren rollo (DTF, DTF+PL, SUBLIM, SUB+PL)
+    if (isSublimacion) {
       if (!formData.numero_rollo) {
-        toast.error('Debes seleccionar un rollo para trabajos de sublimación');
+        toast.error('Debes seleccionar un rollo para este tipo de trabajo');
         return;
       }
-
-      // Verificar disponibilidad una última vez antes de crear
-      if (alertaMetraje && alertaMetraje.tipo === 'error') {
-        toast.error('No hay suficiente metraje en el rollo seleccionado. Por favor, cambia de rollo.');
+      
+      if (metrajeTotalRequerido === 0) {
+        toast.error('Debes ingresar el metraje de impresión en al menos un ítem');
         return;
       }
+      
+      if (rolloSeleccionado && rolloSeleccionado.metraje_disponible < metrajeTotalRequerido) {
+        toast.error(`El rollo seleccionado no tiene suficiente metraje. Disponible: ${rolloSeleccionado.metraje_disponible}m, Requerido: ${metrajeTotalRequerido.toFixed(2)}m`);
+        return;
+      }
+    }
 
-      // Confirmar si el rollo quedará con poco metraje
-      if (alertaMetraje && alertaMetraje.tipo === 'warning') {
-        const confirmar = window.confirm(
-          `${alertaMetraje.mensaje}\n\n¿Deseas continuar con este pedido?`
-        );
-        if (!confirmar) {
-          return;
-        }
+    // Confirmar si el rollo quedará con poco metraje
+    if (alertaMetraje && alertaMetraje.tipo === 'warning') {
+      const confirmar = window.confirm(
+        `${alertaMetraje.mensaje}\n\n¿Deseas continuar con este pedido?`
+      );
+      if (!confirmar) {
+        return;
       }
     }
 
@@ -400,18 +432,25 @@ const OrderForm = () => {
       } else {
         orderResponse = await api.post('/orders', formData);
         
-        // Si es sublimación y hay metraje, descontar del rollo
-        if (isSublimacion && metrajeTotalRequerido > 0 && formData.numero_rollo) {
+        // Debug logs
+        console.log('Debug - isSublimacion:', isSublimacion);
+        console.log('Debug - metrajeTotalRequerido:', metrajeTotalRequerido);
+        console.log('Debug - formData.numero_rollo:', formData.numero_rollo);
+        console.log('Debug - rolloSeleccionado:', rolloSeleccionado);
+        
+        // Si requiere rollo y hay metraje, descontar del rollo
+        if (isSublimacion && metrajeTotalRequerido > 0 && formData.numero_rollo && rolloSeleccionado) {
           try {
             await api.post('/rollos/descontar', {
               numero_rollo: parseInt(formData.numero_rollo),
+              tipo: rolloSeleccionado.tipo,
               metraje: metrajeTotalRequerido,
               order_id: orderResponse.data.order.id,
               notas: `Pedido ${orderResponse.data.order.receipt_number} - ${formData.client_name}`
             });
             
             toast.success(
-              `Pedido creado exitosamente. ${metrajeTotalRequerido.toFixed(2)}m descontados del Rollo ${formData.numero_rollo}`,
+              `Pedido creado exitosamente. ${metrajeTotalRequerido.toFixed(2)}m descontados del Rollo ${rolloSeleccionado.tipo} ${formData.numero_rollo}`,
               { duration: 4000 }
             );
           } catch (rolloError) {
@@ -579,7 +618,7 @@ const OrderForm = () => {
 
             <div>
               <label htmlFor="numero_rollo" className="label">
-                Número de Rollo {isSublimacion && <span className="text-primary-600">(Control de Metraje)</span>}
+                Número de Rollo {isSublimacion && <span className="text-primary-600">* (Control de Metraje)</span>}
               </label>
               <select
                 id="numero_rollo"
@@ -587,6 +626,7 @@ const OrderForm = () => {
                 value={formData.numero_rollo}
                 onChange={handleInputChange}
                 className="input"
+                required={isSublimacion}
               >
                 <option value="">Seleccionar...</option>
                 {rollos.filter(r => r.is_active).map((rollo) => (

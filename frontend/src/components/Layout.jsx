@@ -29,7 +29,8 @@ const Layout = () => {
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Pedidos', href: '/orders', icon: ShoppingCart },
     { name: 'Clientes', href: '/clients', icon: Users },
-    { name: 'Productos', href: '/products', icon: Package },
+    { name: 'Almacén', href: '/products', icon: Package },
+    { name: 'Rollos', href: '/rollos', icon: Package },
     { name: 'Reportes', href: '/reports', icon: BarChart3 },
     { name: 'Config. Bancaria', href: '/bank-config', icon: Landmark },
   ];

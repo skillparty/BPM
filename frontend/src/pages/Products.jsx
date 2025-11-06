@@ -26,8 +26,8 @@ const Products = () => {
       const response = await api.get('/products');
       setProducts(response.data || []);
     } catch (error) {
-      console.error('Error al cargar productos:', error);
-      toast.error('Error al cargar los productos');
+      console.error('Error al cargar artículos:', error);
+      toast.error('Error al cargar los artículos del almacén');
     } finally {
       setLoading(false);
     }
@@ -118,8 +118,8 @@ const Products = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Productos</h1>
-          <p className="text-gray-500 mt-1">Gestiona el inventario de productos y bobinas</p>
+          <h1 className="text-2xl font-bold text-gray-900">Almacén</h1>
+          <p className="text-gray-500 mt-1">Gestiona el inventario de materiales y bobinas</p>
         </div>
         <button
           onClick={() => handleOpenModal()}
