@@ -42,38 +42,6 @@ const Dashboard = () => {
     );
   }
 
-  const stats = [
-    {
-      name: 'Ventas Hoy',
-      value: `Bs. ${dashboard?.today?.amount?.toFixed(2) || '0.00'}`,
-      description: `${dashboard?.today?.orders || 0} pedidos`,
-      icon: DollarSign,
-      color: 'bg-green-500',
-      change: '+12%'
-    },
-    {
-      name: 'Ventas del Mes',
-      value: `Bs. ${dashboard?.month?.amount?.toFixed(2) || '0.00'}`,
-      description: `${dashboard?.month?.orders || 0} pedidos`,
-      icon: TrendingUp,
-      color: 'bg-blue-500'
-    },
-    {
-      name: 'Ventas del Año',
-      value: `Bs. ${dashboard?.year?.amount?.toFixed(2) || '0.00'}`,
-      description: `${dashboard?.year?.orders || 0} pedidos`,
-      icon: ShoppingCart,
-      color: 'bg-purple-500'
-    },
-    {
-      name: 'Pagos Pendientes',
-      value: `Bs. ${dashboard?.pending_payments?.amount?.toFixed(2) || '0.00'}`,
-      description: `${dashboard?.pending_payments?.count || 0} pedidos`,
-      icon: AlertCircle,
-      color: 'bg-orange-500'
-    }
-  ];
-
   // Preparar datos para gráficos de torta (solo del mes actual)
   const salesData = [
     { name: 'Ventas Pagadas', value: (dashboard?.month?.amount || 0) - (dashboard?.month_pending_payments?.amount || 0), color: '#10b981' },
@@ -84,15 +52,72 @@ const Dashboard = () => {
     ? (dashboard?.month?.amount / dashboard?.month?.orders).toFixed(2)
     : 0;
 
-  // Filtrar solo DTF, DTF+PL, SUBLIM, INSIG-T
-  const allowedTypes = ['DTF', 'DTF+PL', 'SUBLIM', 'INSIG-T'];
+  // Filtrar solo DTF, DTF+, SUBLIM, INSIG-T con colores consistentes
+  const allowedTypes = ['DTF', 'DTF+', 'SUBLIM', 'INSIG-T'];
   const workTypeData = (dashboard?.sales_by_work_type || [])
     .filter(item => allowedTypes.includes(item.work_type))
-    .map((item, idx) => ({
+    .map((item) => ({
       name: item.work_type,
       value: parseInt(item.total_orders),
-      color: ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b'][idx % 4]
+      color: {
+        'DTF': '#3b82f6',
+        'DTF+': '#8b5cf6',
+        'SUBLIM': '#ec4899',
+        'INSIG-T': '#f59e0b'
+      }[item.work_type] || '#6b7280'
     }));
+
+  // Función para generar datos de gráfico de torta por período
+  const getWorkTypeChartData = (periodData) => {
+    if (!periodData?.by_work_type) return [];
+    return periodData.by_work_type
+      .filter(item => allowedTypes.includes(item.work_type))
+      .map((item, idx) => ({
+        name: item.work_type,
+        value: parseInt(item.total_orders),
+        amount: parseFloat(item.total_amount || 0),
+        color: {
+          'DTF': '#3b82f6',
+          'DTF+': '#8b5cf6',
+          'SUBLIM': '#ec4899',
+          'INSIG-T': '#f59e0b'
+        }[item.work_type] || '#6b7280'
+      }));
+  };
+
+  const todayChartData = getWorkTypeChartData(dashboard?.today);
+  const monthChartData = getWorkTypeChartData(dashboard?.month);
+  const yearChartData = getWorkTypeChartData(dashboard?.year);
+  const pendingChartData = getWorkTypeChartData(dashboard?.pending_payments);
+
+  // Función para renderizar labels en gráficos de torta
+  const renderLabel = (entry) => {
+    if (entry.value === 0) return '';
+    const percent = ((entry.percent || 0) * 100).toFixed(0);
+    return `${entry.value}`;
+  };
+
+  // Función para renderizar labels con padding (para evitar que se corten)
+  const renderLabelWithPadding = ({ cx, cy, midAngle, innerRadius, outerRadius, value, index }) => {
+    if (value === 0) return null;
+    const RADIAN = Math.PI / 180;
+    const radius = outerRadius + 20; // Más espacio fuera del gráfico
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    
+    return (
+      <text 
+        x={x} 
+        y={y} 
+        fill="#374151" 
+        textAnchor={x > cx ? 'start' : 'end'} 
+        dominantBaseline="central"
+        className="text-sm font-semibold"
+      >
+        {value}
+      </text>
+    );
+  };
 
   // Obtener ventas en Bs por tipo de trabajo
   const getWorkTypeSales = (workType) => {
@@ -106,16 +131,28 @@ const Dashboard = () => {
     return parseInt(data?.total_orders || 0);
   };
 
-  const dtfSales = getWorkTypeSales('DTF');
+  // Obtener metraje total por tipo de trabajo
+  const getWorkTypeMetraje = (workType) => {
+    const data = dashboard?.sales_by_work_type?.find(item => item.work_type === workType);
+    return parseFloat(data?.total_metraje || 0);
+  };
+
+  // Obtener cantidad de insignias por tipo de trabajo
+  const getWorkTypeInsignias = (workType) => {
+    const data = dashboard?.sales_by_work_type?.find(item => item.work_type === workType);
+    return parseFloat(data?.total_insignias || 0);
+  };
+
+  const dtfMetraje = getWorkTypeMetraje('DTF');
   const dtfOrders = getWorkTypeOrders('DTF');
   
-  const insigSales = getWorkTypeSales('INSIG-T');
+  const insigCantidad = getWorkTypeInsignias('INSIG-T');
   const insigOrders = getWorkTypeOrders('INSIG-T');
   
-  const dtfPlusSales = getWorkTypeSales('DTF+PL');
-  const dtfPlusOrders = getWorkTypeOrders('DTF+PL');
+  const dtfPlusMetraje = getWorkTypeMetraje('DTF+');
+  const dtfPlusOrders = getWorkTypeOrders('DTF+');
   
-  const sublimSales = getWorkTypeSales('SUBLIM');
+  const sublimMetraje = getWorkTypeMetraje('SUBLIM');
   const sublimOrders = getWorkTypeOrders('SUBLIM');
 
   const COLORS = {
@@ -125,25 +162,163 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Stats Cards */}
+      {/* Stats Cards con Gráficos de Torta */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <div key={stat.name} className="card">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">{stat.name}</p>
-                  <p className="mt-2 text-3xl font-bold text-gray-900">{stat.value}</p>
-                  <p className="mt-1 text-sm text-gray-500">{stat.description}</p>
-                </div>
-                <div className={`${stat.color} p-3 rounded-lg`}>
-                  <Icon className="w-6 h-6 text-white" />
-                </div>
-              </div>
+        {/* Ventas Hoy */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Ventas Hoy</p>
+              <p className="mt-1 text-2xl font-bold text-gray-900">
+                Bs. {dashboard?.today?.amount?.toFixed(2) || '0.00'}
+              </p>
+              <p className="text-xs text-gray-500">{dashboard?.today?.orders || 0} pedidos</p>
             </div>
-          );
-        })}
+            <div className="bg-green-500 p-2 rounded-lg">
+              <DollarSign className="w-5 h-5 text-white" />
+            </div>
+          </div>
+          {todayChartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={160}>
+              <PieChart>
+                <Pie
+                  data={todayChartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={25}
+                  outerRadius={45}
+                  dataKey="value"
+                  label={renderLabelWithPadding}
+                  labelLine={false}
+                >
+                  {todayChartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value, name, props) => [`${value} pedidos`, props.payload.name]} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-xs text-gray-400 text-center py-4">Sin datos</p>
+          )}
+        </div>
+
+        {/* Ventas del Mes */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Ventas del Mes</p>
+              <p className="mt-1 text-2xl font-bold text-gray-900">
+                Bs. {dashboard?.month?.amount?.toFixed(2) || '0.00'}
+              </p>
+              <p className="text-xs text-gray-500">{dashboard?.month?.orders || 0} pedidos</p>
+            </div>
+            <div className="bg-blue-500 p-2 rounded-lg">
+              <TrendingUp className="w-5 h-5 text-white" />
+            </div>
+          </div>
+          {monthChartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={160}>
+              <PieChart>
+                <Pie
+                  data={monthChartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={25}
+                  outerRadius={45}
+                  dataKey="value"
+                  label={renderLabelWithPadding}
+                  labelLine={false}
+                >
+                  {monthChartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value, name, props) => [`${value} pedidos`, props.payload.name]} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-xs text-gray-400 text-center py-4">Sin datos</p>
+          )}
+        </div>
+
+        {/* Ventas del Año */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Ventas del Año</p>
+              <p className="mt-1 text-2xl font-bold text-gray-900">
+                Bs. {dashboard?.year?.amount?.toFixed(2) || '0.00'}
+              </p>
+              <p className="text-xs text-gray-500">{dashboard?.year?.orders || 0} pedidos</p>
+            </div>
+            <div className="bg-purple-500 p-2 rounded-lg">
+              <ShoppingCart className="w-5 h-5 text-white" />
+            </div>
+          </div>
+          {yearChartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={160}>
+              <PieChart>
+                <Pie
+                  data={yearChartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={25}
+                  outerRadius={45}
+                  dataKey="value"
+                  label={renderLabelWithPadding}
+                  labelLine={false}
+                >
+                  {yearChartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value, name, props) => [`${value} pedidos`, props.payload.name]} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-xs text-gray-400 text-center py-4">Sin datos</p>
+          )}
+        </div>
+
+        {/* Pagos Pendientes */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Pagos Pendientes</p>
+              <p className="mt-1 text-2xl font-bold text-gray-900">
+                Bs. {dashboard?.pending_payments?.amount?.toFixed(2) || '0.00'}
+              </p>
+              <p className="text-xs text-gray-500">{dashboard?.pending_payments?.count || 0} pedidos</p>
+            </div>
+            <div className="bg-orange-500 p-2 rounded-lg">
+              <AlertCircle className="w-5 h-5 text-white" />
+            </div>
+          </div>
+          {pendingChartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={160}>
+              <PieChart>
+                <Pie
+                  data={pendingChartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={25}
+                  outerRadius={45}
+                  dataKey="value"
+                  label={renderLabelWithPadding}
+                  labelLine={false}
+                >
+                  {pendingChartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value, name, props) => [`${value} pedidos`, props.payload.name]} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-xs text-gray-400 text-center py-4">Sin datos</p>
+          )}
+        </div>
       </div>
 
       {/* Metas por Tipo de Servicio */}
@@ -154,9 +329,10 @@ const Dashboard = () => {
             <Target className="w-4 h-4 text-blue-600" />
             <h3 className="text-base font-semibold text-gray-900">DTF</h3>
           </div>
-          <SalesGauge current={dtfSales} target={3000} type="dinero" />
+          <SalesGauge current={dtfMetraje} target={500} type="metros" />
           <div className="mt-4 text-center text-sm text-gray-600">
             <p className="font-semibold text-blue-600">{dtfOrders} pedidos</p>
+            <p className="text-xs text-gray-500">Meta: 500 metros/mes</p>
           </div>
         </div>
 
@@ -166,9 +342,10 @@ const Dashboard = () => {
             <Target className="w-4 h-4 text-orange-600" />
             <h3 className="text-base font-semibold text-gray-900">INSIG-T</h3>
           </div>
-          <SalesGauge current={insigSales} target={3000} type="dinero" />
+          <SalesGauge current={insigCantidad} target={3000} type="unidades" />
           <div className="mt-4 text-center text-sm text-gray-600">
             <p className="font-semibold text-orange-600">{insigOrders} pedidos</p>
+            <p className="text-xs text-gray-500">Meta: 3,000 unidades/mes</p>
           </div>
         </div>
 
@@ -178,9 +355,10 @@ const Dashboard = () => {
             <Target className="w-4 h-4 text-purple-600" />
             <h3 className="text-base font-semibold text-gray-900">DTF+</h3>
           </div>
-          <SalesGauge current={dtfPlusSales} target={3000} type="dinero" />
+          <SalesGauge current={dtfPlusMetraje} target={500} type="metros" />
           <div className="mt-4 text-center text-sm text-gray-600">
             <p className="font-semibold text-purple-600">{dtfPlusOrders} pedidos</p>
+            <p className="text-xs text-gray-500">Meta: 500 metros/mes</p>
           </div>
         </div>
 
@@ -190,9 +368,10 @@ const Dashboard = () => {
             <Target className="w-4 h-4 text-pink-600" />
             <h3 className="text-base font-semibold text-gray-900">SUBLIM</h3>
           </div>
-          <SalesGauge current={sublimSales} target={3000} type="dinero" />
+          <SalesGauge current={sublimMetraje} target={500} type="metros" />
           <div className="mt-4 text-center text-sm text-gray-600">
             <p className="font-semibold text-pink-600">{sublimOrders} pedidos</p>
+            <p className="text-xs text-gray-500">Meta: 500 metros/mes</p>
           </div>
         </div>
       </div>

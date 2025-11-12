@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Plus, Search, Filter, Eye, Download, Tag, MessageCircle, Printer, CreditCard } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Download, Tag, MessageCircle, Printer, CreditCard, Trash2 } from 'lucide-react';
 import PartialPaymentsModal from '../components/PartialPaymentsModal';
 
 const Orders = () => {
@@ -45,6 +45,23 @@ const Orders = () => {
     } catch (error) {
       console.error('Error al descargar archivo:', error);
       toast.error('Error al descargar el archivo');
+    }
+  };
+
+  const handleDelete = async (order) => {
+    const confirmMessage = `¿Estás seguro de eliminar el pedido ${order.receipt_number}?\n\nCliente: ${order.client_name}\nTotal: Bs. ${parseFloat(order.total).toFixed(2)}\n\nEsta acción cambiará el estado del pedido a "Cancelado".`;
+    
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      await api.delete(`/orders/${order.id}`);
+      toast.success('Pedido cancelado exitosamente');
+      fetchOrders(); // Recargar lista
+    } catch (error) {
+      console.error('Error al eliminar pedido:', error);
+      toast.error('Error al cancelar el pedido');
     }
   };
 
@@ -284,12 +301,18 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-700 font-medium">
-                      {new Date(order.order_date).toLocaleDateString('es-BO', { weekday: 'long' })}
+                      {(() => {
+                        const date = new Date(order.order_date + 'T12:00:00');
+                        return date.toLocaleDateString('es-BO', { weekday: 'long' });
+                      })()}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-500">
-                      {new Date(order.order_date).toLocaleDateString('es-BO')}
+                      {(() => {
+                        const date = new Date(order.order_date + 'T12:00:00');
+                        return date.toLocaleDateString('es-BO');
+                      })()}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -369,6 +392,17 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
                       >
                         <MessageCircle className="w-5 h-5" />
                       </button>
+                      
+                      {/* Botón Eliminar - solo para pedidos activos */}
+                      {order.status === 'activo' && (
+                        <button
+                          onClick={() => handleDelete(order)}
+                          className="text-red-600 hover:text-red-900"
+                          title="Eliminar Pedido"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

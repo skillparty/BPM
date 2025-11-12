@@ -3,7 +3,7 @@ import pool from '../config/database.js';
 // Dashboard principal
 export const getDashboard = async (req, res) => {
   try {
-    // Ventas del día
+    // Ventas del día (solo pagados o parciales)
     const todaySales = await pool.query(`
       SELECT 
         COUNT(*) as total_orders,
@@ -11,9 +11,10 @@ export const getDashboard = async (req, res) => {
       FROM orders
       WHERE order_date = CURRENT_DATE 
         AND status != 'cancelado'
+        AND payment_status IN ('pagado', 'parcial')
     `);
 
-    // Ventas del mes
+    // Ventas del mes (solo pagados o parciales)
     const monthSales = await pool.query(`
       SELECT 
         COUNT(*) as total_orders,
@@ -21,9 +22,10 @@ export const getDashboard = async (req, res) => {
       FROM orders
       WHERE DATE_TRUNC('month', order_date) = DATE_TRUNC('month', CURRENT_DATE)
         AND status != 'cancelado'
+        AND payment_status IN ('pagado', 'parcial')
     `);
 
-    // Ventas del año
+    // Ventas del año (solo pagados o parciales)
     const yearSales = await pool.query(`
       SELECT 
         COUNT(*) as total_orders,
@@ -31,6 +33,7 @@ export const getDashboard = async (req, res) => {
       FROM orders
       WHERE DATE_TRUNC('year', order_date) = DATE_TRUNC('year', CURRENT_DATE)
         AND status != 'cancelado'
+        AND payment_status IN ('pagado', 'parcial')
     `);
 
     // Pedidos pendientes o parciales (no completamente pagados)
@@ -64,16 +67,71 @@ export const getDashboard = async (req, res) => {
       LIMIT 10
     `);
 
-    // Ventas por tipo de trabajo (mes actual)
-    const salesByWorkType = await pool.query(`
+    // Ventas por tipo de trabajo (hoy - solo pagados o parciales)
+    const salesByWorkTypeToday = await pool.query(`
       SELECT 
         wt.name as work_type,
         COUNT(o.id) as total_orders,
         COALESCE(SUM(o.total), 0) as total_amount
       FROM orders o
       LEFT JOIN work_types wt ON o.work_type_id = wt.id
+      WHERE o.order_date = CURRENT_DATE
+        AND o.status != 'cancelado'
+        AND o.payment_status IN ('pagado', 'parcial')
+      GROUP BY wt.name
+      ORDER BY total_amount DESC
+    `);
+
+    // Ventas por tipo de trabajo (mes actual) con metraje e insignias (solo pagados o parciales)
+    const salesByWorkTypeMonth = await pool.query(`
+      SELECT 
+        wt.name as work_type,
+        COUNT(o.id) as total_orders,
+        COALESCE(SUM(o.total), 0) as total_amount,
+        COALESCE(SUM(
+          (SELECT SUM(oi.impresion_metraje) 
+           FROM order_items oi 
+           WHERE oi.order_id = o.id)
+        ), 0) as total_metraje,
+        COALESCE(SUM(
+          (SELECT SUM(oi.insignia_cantidad) 
+           FROM order_items oi 
+           WHERE oi.order_id = o.id)
+        ), 0) as total_insignias
+      FROM orders o
+      LEFT JOIN work_types wt ON o.work_type_id = wt.id
       WHERE DATE_TRUNC('month', o.order_date) = DATE_TRUNC('month', CURRENT_DATE)
         AND o.status != 'cancelado'
+        AND o.payment_status IN ('pagado', 'parcial')
+      GROUP BY wt.name
+      ORDER BY total_amount DESC
+    `);
+
+    // Ventas por tipo de trabajo (año actual - solo pagados o parciales)
+    const salesByWorkTypeYear = await pool.query(`
+      SELECT 
+        wt.name as work_type,
+        COUNT(o.id) as total_orders,
+        COALESCE(SUM(o.total), 0) as total_amount
+      FROM orders o
+      LEFT JOIN work_types wt ON o.work_type_id = wt.id
+      WHERE DATE_TRUNC('year', o.order_date) = DATE_TRUNC('year', CURRENT_DATE)
+        AND o.status != 'cancelado'
+        AND o.payment_status IN ('pagado', 'parcial')
+      GROUP BY wt.name
+      ORDER BY total_amount DESC
+    `);
+
+    // Ventas pendientes por tipo de trabajo
+    const salesByWorkTypePending = await pool.query(`
+      SELECT 
+        wt.name as work_type,
+        COUNT(o.id) as total_orders,
+        COALESCE(SUM(o.total - COALESCE(o.monto_pagado, 0)), 0) as total_amount
+      FROM orders o
+      LEFT JOIN work_types wt ON o.work_type_id = wt.id
+      WHERE o.payment_status IN ('pendiente', 'parcial')
+        AND o.status = 'activo'
       GROUP BY wt.name
       ORDER BY total_amount DESC
     `);
@@ -81,26 +139,30 @@ export const getDashboard = async (req, res) => {
     res.json({
       today: {
         orders: parseInt(todaySales.rows[0].total_orders),
-        amount: parseFloat(todaySales.rows[0].total_amount)
+        amount: parseFloat(todaySales.rows[0].total_amount),
+        by_work_type: salesByWorkTypeToday.rows
       },
       month: {
         orders: parseInt(monthSales.rows[0].total_orders),
-        amount: parseFloat(monthSales.rows[0].total_amount)
+        amount: parseFloat(monthSales.rows[0].total_amount),
+        by_work_type: salesByWorkTypeMonth.rows
       },
       year: {
         orders: parseInt(yearSales.rows[0].total_orders),
-        amount: parseFloat(yearSales.rows[0].total_amount)
+        amount: parseFloat(yearSales.rows[0].total_amount),
+        by_work_type: salesByWorkTypeYear.rows
       },
       pending_payments: {
         count: parseInt(pendingPayments.rows[0].count),
-        amount: parseFloat(pendingPayments.rows[0].amount)
+        amount: parseFloat(pendingPayments.rows[0].amount),
+        by_work_type: salesByWorkTypePending.rows
       },
       month_pending_payments: {
         count: parseInt(monthPendingPayments.rows[0].count),
         amount: parseFloat(monthPendingPayments.rows[0].amount)
       },
       recent_orders: recentOrders.rows,
-      sales_by_work_type: salesByWorkType.rows
+      sales_by_work_type: salesByWorkTypeMonth.rows // Mantener para compatibilidad
     });
   } catch (error) {
     console.error('Error al obtener dashboard:', error);

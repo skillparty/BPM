@@ -221,13 +221,12 @@ export const createOrder = async (req, res) => {
       items,
       payment_type_id,
       bank_id,
+      payment_status: paymentStatusFromBody,
       notes
     } = req.body;
 
-    // El payment_status siempre inicia como 'pendiente'
-    // Se cambiará a 'pagado' cuando el usuario registre el pago completo
-    // o a 'parcial' cuando registre pagos parciales
-    const payment_status = 'pendiente';
+    // Usar el payment_status del formulario, o 'pendiente' por defecto
+    const payment_status = paymentStatusFromBody || 'pendiente';
 
     // Generar número de recibo
     const receiptNumber = await generateReceiptNumber();
@@ -235,6 +234,11 @@ export const createOrder = async (req, res) => {
     // Calcular totales
     const subtotal = items.reduce((sum, item) => sum + parseFloat(item.total), 0);
     const total = subtotal;
+    
+    // Si el estado de pago es 'pagado', el monto_pagado será el total
+    // Si es 'pendiente', monto_pagado = 0
+    // Si es 'parcial', se manejará después con partial_payments
+    const monto_pagado = payment_status === 'pagado' ? total : 0;
 
     // Generar QR code (con el número de recibo)
     const qrCode = await QRCode.toDataURL(receiptNumber);
@@ -244,13 +248,13 @@ export const createOrder = async (req, res) => {
       `INSERT INTO orders (
         receipt_number, client_phone, client_name, order_date, work_type_id,
         description, subtotal, total, payment_type_id, bank_id, 
-        payment_status, qr_code, notes, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        payment_status, monto_pagado, qr_code, notes, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *`,
       [
         receiptNumber, client_phone, client_name, order_date || new Date(),
         work_type_id, description, subtotal, total, payment_type_id,
-        bank_id, payment_status, qrCode, notes, req.user.id
+        bank_id, payment_status, monto_pagado, qrCode, notes, req.user.id
       ]
     );
 
@@ -260,39 +264,43 @@ export const createOrder = async (req, res) => {
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       
-      // Construir descripción con los módulos utilizados
-      let descripcionPartes = [];
-      let quantity = 0;
-      let mainQuantity = 0;
-      
-      if (item.useImpresion && item.impresion_metraje) {
-        descripcionPartes.push(`Impresión: ${item.impresion_metraje}m`);
-        mainQuantity = parseFloat(item.impresion_metraje);
-      }
-      if (item.usePlanchado && item.planchado_cantidad) {
-        descripcionPartes.push(`Planchado: ${item.planchado_cantidad} uds`);
-        if (!mainQuantity) mainQuantity = parseFloat(item.planchado_cantidad);
-      }
-      if (item.useInsignia && item.insignia_cantidad) {
-        descripcionPartes.push(`Insignias: ${item.insignia_cantidad} uds`);
-        if (!mainQuantity) mainQuantity = parseFloat(item.insignia_cantidad);
-      }
-      
-      const descripcion = descripcionPartes.join(' | ');
-      quantity = mainQuantity || 1;
-      const unitPrice = quantity > 0 ? (item.total / quantity) : item.total;
-      
       await client.query(
         `INSERT INTO order_items (
-          order_id, item_number, description, quantity, unit_price, total
-        ) VALUES ($1, $2, $3, $4, $5, $6)`,
+          order_id, item_number, 
+          impresion_metraje, impresion_costo, impresion_subtotal,
+          planchado_cantidad, planchado_costo, planchado_subtotal,
+          insignia_cantidad, insignia_costo, insignia_subtotal,
+          total
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
         [
           order.id,
           i + 1,
-          descripcion || 'Item',
-          quantity,
-          unitPrice,
+          item.impresion_metraje || 0,
+          item.impresion_costo || 0,
+          item.impresion_subtotal || 0,
+          item.planchado_cantidad || 0,
+          item.planchado_costo || 0,
+          item.planchado_subtotal || 0,
+          item.insignia_cantidad || 0,
+          item.insignia_costo || 0,
+          item.insignia_subtotal || 0,
           item.total || 0
+        ]
+      );
+    }
+
+    // Si el estado de pago es 'pagado' y hay payment_type_id, registrar el pago automáticamente
+    if (payment_status === 'pagado' && payment_type_id) {
+      await client.query(
+        `INSERT INTO partial_payments (
+          order_id, monto, payment_type_id, bank_id, notas
+        ) VALUES ($1, $2, $3, $4, $5)`,
+        [
+          order.id,
+          total,
+          payment_type_id,
+          bank_id,
+          'Pago registrado al crear el pedido'
         ]
       );
     }
@@ -327,8 +335,11 @@ export const createOrder = async (req, res) => {
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error al crear pedido:', error);
-    res.status(500).json({ message: 'Error en el servidor' });
+    console.error('Error al crear pedido:', error.message);
+    res.status(500).json({ 
+      message: 'Error en el servidor',
+      error: error.message 
+    });
   } finally {
     client.release();
   }
@@ -396,38 +407,26 @@ export const updateOrder = async (req, res) => {
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         
-        // Construir descripción con los módulos utilizados
-        let descripcionPartes = [];
-        let quantity = 0;
-        let mainQuantity = 0;
-        
-        if (item.useImpresion && item.impresion_metraje) {
-          descripcionPartes.push(`Impresión: ${item.impresion_metraje}m`);
-          mainQuantity = parseFloat(item.impresion_metraje);
-        }
-        if (item.usePlanchado && item.planchado_cantidad) {
-          descripcionPartes.push(`Planchado: ${item.planchado_cantidad} uds`);
-          if (!mainQuantity) mainQuantity = parseFloat(item.planchado_cantidad);
-        }
-        if (item.useInsignia && item.insignia_cantidad) {
-          descripcionPartes.push(`Insignias: ${item.insignia_cantidad} uds`);
-          if (!mainQuantity) mainQuantity = parseFloat(item.insignia_cantidad);
-        }
-        
-        const descripcion = descripcionPartes.join(' | ');
-        quantity = mainQuantity || 1;
-        const unitPrice = quantity > 0 ? (item.total / quantity) : item.total;
-        
         await client.query(
           `INSERT INTO order_items (
-            order_id, item_number, description, quantity, unit_price, total
-          ) VALUES ($1, $2, $3, $4, $5, $6)`,
+            order_id, item_number, 
+            impresion_metraje, impresion_costo, impresion_subtotal,
+            planchado_cantidad, planchado_costo, planchado_subtotal,
+            insignia_cantidad, insignia_costo, insignia_subtotal,
+            total
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
           [
             id,
             i + 1,
-            descripcion || 'Item',
-            quantity,
-            unitPrice,
+            item.impresion_metraje || 0,
+            item.impresion_costo || 0,
+            item.impresion_subtotal || 0,
+            item.planchado_cantidad || 0,
+            item.planchado_costo || 0,
+            item.planchado_subtotal || 0,
+            item.insignia_cantidad || 0,
+            item.insignia_costo || 0,
+            item.insignia_subtotal || 0,
             item.total || 0
           ]
         );
@@ -654,14 +653,34 @@ export const generateReceiptPDF = async (req, res) => {
 
     doc.font('Helvetica');
     itemsResult.rows.forEach((item) => {
+      // Construir descripción desde los módulos
+      let descripcionPartes = [];
+      let cantidad = 0;
+      
+      if (parseFloat(item.impresion_metraje) > 0) {
+        descripcionPartes.push(`Impresión: ${item.impresion_metraje}m`);
+        cantidad = parseFloat(item.impresion_metraje);
+      }
+      if (parseFloat(item.planchado_cantidad) > 0) {
+        descripcionPartes.push(`Planchado: ${item.planchado_cantidad} uds`);
+        if (!cantidad) cantidad = parseFloat(item.planchado_cantidad);
+      }
+      if (parseFloat(item.insignia_cantidad) > 0) {
+        descripcionPartes.push(`Insignias: ${item.insignia_cantidad} uds`);
+        if (!cantidad) cantidad = parseFloat(item.insignia_cantidad);
+      }
+      
+      const descripcion = descripcionPartes.join(' | ') || 'Item';
+      const precioUnitario = cantidad > 0 ? (parseFloat(item.total) / cantidad) : parseFloat(item.total);
+      
       // Nombre del item
-      doc.text(item.description || '-', itemX, y, { width: 75 });
+      doc.text(descripcion, itemX, y, { width: 75 });
       
       // Cantidad
-      doc.text(parseFloat(item.quantity || 0).toFixed(2), cantX, y, { width: 30, align: 'right' });
+      doc.text((cantidad || 1).toFixed(2), cantX, y, { width: 30, align: 'right' });
       
       // Precio unitario
-      doc.text(parseFloat(item.unit_price || 0).toFixed(2), precioX, y, { width: 35, align: 'right' });
+      doc.text(precioUnitario.toFixed(2), precioX, y, { width: 35, align: 'right' });
       
       // Total del item
       doc.text(parseFloat(item.total || 0).toFixed(2), totalItemX, y, { width: 35, align: 'right' });
@@ -738,10 +757,10 @@ export const generateLabelPDF = async (req, res) => {
 
     // Calcular metraje total para trabajos con impresión
     let metrajeDTF = 0;
-    // DTF (1), SUBLIM (2), DTF+PL (4), SUB+PL (5)
-    if (['1', '2', '4', '5'].includes(order.work_type_code)) {
+    // DTF (1), DTF+ (8), SUBLIM (2), DTF+PL (4), SUB+PL (5)
+    if (['1', '2', '4', '5', '8'].includes(order.work_type_code)) {
       const itemsResult = await pool.query(
-        'SELECT SUM(quantity) as total FROM order_items WHERE order_id = $1',
+        'SELECT SUM(impresion_metraje) as total FROM order_items WHERE order_id = $1',
         [id]
       );
       metrajeDTF = parseFloat(itemsResult.rows[0]?.total || 0);

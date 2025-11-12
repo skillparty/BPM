@@ -14,10 +14,11 @@ const OrderForm = () => {
   const [paymentTypes, setPaymentTypes] = useState([]);
   const [banks, setBanks] = useState([]);
   const [clients, setClients] = useState([]);
-  const [isNewClient, setIsNewClient] = useState(false);
   const [rollos, setRollos] = useState([]);
   const [rolloSeleccionado, setRolloSeleccionado] = useState(null);
   const [isSublimacion, setIsSublimacion] = useState(false);
+  const [requiereSeleccionRollo, setRequiereSeleccionRollo] = useState(false);
+  const [tipoRollo, setTipoRollo] = useState('DTF');
   const [metrajeTotalRequerido, setMetrajeTotalRequerido] = useState(0);
   const [alertaMetraje, setAlertaMetraje] = useState(null);
   const [modulosHabilitados, setModulosHabilitados] = useState({
@@ -46,18 +47,18 @@ const OrderForm = () => {
     items: [{
       // Módulo Impresión
       useImpresion: false,
-      impresion_metraje: 0,
+      impresion_metraje: '',
       impresion_costo: 0,
       impresion_subtotal: 0,
       // Módulo Planchado
       usePlanchado: false,
-      planchado_cantidad: 0,
-      planchado_costo: 0,
+      planchado_cantidad: '',
+      planchado_costo: '',
       planchado_subtotal: 0,
       // Módulo Insignias
       useInsignia: false,
-      insignia_cantidad: 0,
-      insignia_costo: 0,
+      insignia_cantidad: '',
+      insignia_costo: '',
       insignia_subtotal: 0,
       // Total
       total: 0
@@ -106,12 +107,7 @@ const OrderForm = () => {
       const response = await api.get(`/orders/${id}`);
       const order = response.data;
       
-      // Si el pedido tiene un client_phone, no es un nuevo cliente
-      if (order.client_phone) {
-        setIsNewClient(false);
-      } else {
-        setIsNewClient(true);
-      }
+      // El pedido debe tener un client_phone válido
       
       setFormData({
         client_name: order.client_name,
@@ -144,12 +140,14 @@ const OrderForm = () => {
         return sum;
       }, 0);
       setMetrajeTotalRequerido(total);
-      verificarDisponibilidadRollo(formData.numero_rollo, total);
+      if (requiereSeleccionRollo) {
+        verificarDisponibilidadRollo(formData.numero_rollo, total);
+      }
     }
-  }, [formData.items, isSublimacion, formData.numero_rollo]);
+  }, [formData.items, isSublimacion, requiereSeleccionRollo, formData.numero_rollo]);
 
   const verificarDisponibilidadRollo = async (numeroRollo, metrajRequerido) => {
-    if (!numeroRollo || !isSublimacion || metrajRequerido === 0) {
+    if (!numeroRollo || !requiereSeleccionRollo || metrajRequerido === 0) {
       setAlertaMetraje(null);
       return;
     }
@@ -198,31 +196,35 @@ const OrderForm = () => {
         const workTypeName = selectedWorkType.name.toUpperCase();
         const workTypeCode = selectedWorkType.code;
         
-        // Verificar si requiere control de rollos: DTF, SUBLIM, DTF+PL, SUB+PL
-        const requiereRollo = ['1', '2', '4', '5'].includes(workTypeCode) || 
-                             ['DTF', 'SUBLIM', 'DTF+PL', 'SUB+PL'].includes(workTypeName);
+        // Verificar si requiere control de rollos: DTF, DTF+, DTF+PL, SUBLIM, SUB+PL
+        const requiereRollo = ['1', '2', '4', '5', '8'].includes(workTypeCode) || 
+                             ['DTF', 'DTF+', 'DTF+PL', 'SUBLIM', 'SUB+PL'].includes(workTypeName);
         setIsSublimacion(requiereRollo);
         
-        // Determinar tipo de rollo y cargar rollos correspondientes
+        // Determinar tipo de rollo - TODOS usan descuento automático desde Rollo 1
+        let tipoRolloActual = 'DTF';
+        
         if (requiereRollo) {
-          let tipoRollo = 'SUBLIM'; // Por defecto SUBLIM
-          
-          // Si es DTF o DTF+PL, usar rollos DTF
-          if (['DTF', 'DTF+PL'].includes(workTypeName) || ['1', '4'].includes(workTypeCode)) {
-            tipoRollo = 'DTF';
+          // SUBLIM y SUB+PL usan rollos SUBLIM con descuento automático
+          if (['SUBLIM', 'SUB+PL'].includes(workTypeName) || ['2', '5'].includes(workTypeCode)) {
+            tipoRolloActual = 'SUBLIM';
+          } 
+          // DTF, DTF+, DTF+PL usan rollos DTF con descuento automático
+          else if (['DTF', 'DTF+', 'DTF+PL'].includes(workTypeName) || ['1', '4', '8'].includes(workTypeCode)) {
+            tipoRolloActual = 'DTF';
           }
-          
-          fetchRollosPorTipo(tipoRollo);
-        } else {
-          setRollos([]);
         }
+        
+        setTipoRollo(tipoRolloActual);
+        setRequiereSeleccionRollo(false); // Ninguno requiere selección manual
+        setRollos([]); // No necesitan lista de rollos
         
         // Determinar qué módulos están habilitados según el tipo de trabajo
         let nuevosModulos = { impresion: true, planchado: true, insignia: true };
         
-        // DTF (1), SUBLIM (2), DTF+PL (4), SUB+PL (5) → Solo Impresión y Planchado
-        if (['DTF', 'SUBLIM', 'DTF+PL', 'SUB+PL'].includes(workTypeName) || 
-            ['1', '2', '4', '5'].includes(workTypeCode)) {
+        // DTF (1), DTF+ (8), SUBLIM (2), DTF+PL (4), SUB+PL (5) → Solo Impresión y Planchado
+        if (['DTF', 'DTF+', 'SUBLIM', 'DTF+PL', 'SUB+PL'].includes(workTypeName) || 
+            ['1', '2', '4', '5', '8'].includes(workTypeCode)) {
           nuevosModulos = { impresion: true, planchado: true, insignia: false };
         }
         // INSIG-T (6), INS+PL (7) → Solo Insignias y Planchado
@@ -277,13 +279,9 @@ const OrderForm = () => {
   const handleClientChange = (e) => {
     const value = e.target.value;
     
-    if (value === 'new') {
-      setIsNewClient(true);
-      setFormData(prev => ({ ...prev, client_phone: null, client_name: '' }));
-    } else if (value) {
+    if (value) {
       const selectedClient = clients.find(c => c.phone === value);
       if (selectedClient) {
-        setIsNewClient(false);
         setFormData(prev => ({ 
           ...prev, 
           client_phone: selectedClient.phone, 
@@ -291,7 +289,6 @@ const OrderForm = () => {
         }));
       }
     } else {
-      setIsNewClient(false);
       setFormData(prev => ({ ...prev, client_phone: null, client_name: '' }));
     }
   };
@@ -335,16 +332,16 @@ const OrderForm = () => {
       items: [...prev.items, {
         // Solo habilitar módulos permitidos por el tipo de trabajo
         useImpresion: false,
-        impresion_metraje: 0,
+        impresion_metraje: '',
         impresion_costo: 0,
         impresion_subtotal: 0,
         usePlanchado: false,
-        planchado_cantidad: 0,
-        planchado_costo: 0,
+        planchado_cantidad: '',
+        planchado_costo: '',
         planchado_subtotal: 0,
         useInsignia: false,
-        insignia_cantidad: 0,
-        insignia_costo: 0,
+        insignia_cantidad: '',
+        insignia_costo: '',
         insignia_subtotal: 0,
         total: 0
       }]
@@ -393,20 +390,10 @@ const OrderForm = () => {
       return;
     }
 
-    // Validación especial para trabajos que requieren rollo (DTF, DTF+PL, SUBLIM, SUB+PL)
+    // Validación especial para trabajos que requieren rollo
     if (isSublimacion) {
-      if (!formData.numero_rollo) {
-        toast.error('Debes seleccionar un rollo para este tipo de trabajo');
-        return;
-      }
-      
       if (metrajeTotalRequerido === 0) {
         toast.error('Debes ingresar el metraje de impresión en al menos un ítem');
-        return;
-      }
-      
-      if (rolloSeleccionado && rolloSeleccionado.metraje_disponible < metrajeTotalRequerido) {
-        toast.error(`El rollo seleccionado no tiene suficiente metraje. Disponible: ${rolloSeleccionado.metraje_disponible}m, Requerido: ${metrajeTotalRequerido.toFixed(2)}m`);
         return;
       }
     }
@@ -432,25 +419,18 @@ const OrderForm = () => {
       } else {
         orderResponse = await api.post('/orders', formData);
         
-        // Debug logs
-        console.log('Debug - isSublimacion:', isSublimacion);
-        console.log('Debug - metrajeTotalRequerido:', metrajeTotalRequerido);
-        console.log('Debug - formData.numero_rollo:', formData.numero_rollo);
-        console.log('Debug - rolloSeleccionado:', rolloSeleccionado);
-        
-        // Si requiere rollo y hay metraje, descontar del rollo
-        if (isSublimacion && metrajeTotalRequerido > 0 && formData.numero_rollo && rolloSeleccionado) {
+        // Descontar metraje del rollo automáticamente
+        if (isSublimacion && metrajeTotalRequerido > 0) {
           try {
-            await api.post('/rollos/descontar', {
-              numero_rollo: parseInt(formData.numero_rollo),
-              tipo: rolloSeleccionado.tipo,
+            const descuentoResponse = await api.post('/rollos/descontar-automatico', {
+              tipo: tipoRollo,
               metraje: metrajeTotalRequerido,
               order_id: orderResponse.data.order.id,
-              notas: `Pedido ${orderResponse.data.order.receipt_number} - ${formData.client_name}`
+              client_name: formData.client_name
             });
             
             toast.success(
-              `Pedido creado exitosamente. ${metrajeTotalRequerido.toFixed(2)}m descontados del Rollo ${rolloSeleccionado.tipo} ${formData.numero_rollo}`,
+              `Pedido creado exitosamente. ${metrajeTotalRequerido.toFixed(2)}m descontados del Rollo ${tipoRollo} ${descuentoResponse.data.numero_rollo}`,
               { duration: 4000 }
             );
           } catch (rolloError) {
@@ -464,8 +444,9 @@ const OrderForm = () => {
       
       navigate('/orders');
     } catch (error) {
-      console.error('Error al guardar pedido:', error);
-      toast.error(error.response?.data?.message || 'Error al guardar el pedido');
+      console.error('Error al guardar pedido:', error.response?.data || error);
+      const errorMsg = error.response?.data?.error || error.response?.data?.message || 'Error al guardar el pedido';
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -503,10 +484,10 @@ const OrderForm = () => {
               </label>
               <select
                 id="client_select"
-                value={isNewClient ? 'new' : (formData.client_phone || '')}
+                value={formData.client_phone || ''}
                 onChange={handleClientChange}
                 className="input"
-                required={!isNewClient}
+                required
               >
                 <option value="">-- Seleccionar cliente --</option>
                 {clients.map(client => (
@@ -514,28 +495,26 @@ const OrderForm = () => {
                     {client.name} ({client.phone})
                   </option>
                 ))}
-                <option value="new">+ Nuevo Cliente</option>
               </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Si el cliente no existe, por favor créalo desde el módulo de Clientes primero.
+              </p>
             </div>
 
-            {isNewClient && (
-              <div>
-                <label htmlFor="client_name" className="label">
-                  Nombre del Nuevo Cliente *
-                </label>
-                <input
-                  type="text"
-                  id="client_name"
-                  name="client_name"
-                  value={formData.client_name}
-                  onChange={handleInputChange}
-                  className="input"
-                  placeholder="Ingresa el nombre completo"
-                  required
-                />
-              </div>
-            )}
-
+            <div>
+              <label htmlFor="client_name" className="label">
+                Nombre del Cliente
+              </label>
+              <input
+                type="text"
+                id="client_name"
+                name="client_name"
+                value={formData.client_name}
+                className="input bg-gray-100"
+                readOnly
+                disabled
+              />
+            </div>
             <div>
               <label htmlFor="order_date" className="label">
                 Fecha
@@ -616,65 +595,19 @@ const OrderForm = () => {
               )}
             </div>
 
-            <div>
-              <label htmlFor="numero_rollo" className="label">
-                Número de Rollo {isSublimacion && <span className="text-primary-600">* (Control de Metraje)</span>}
-              </label>
-              <select
-                id="numero_rollo"
-                name="numero_rollo"
-                value={formData.numero_rollo}
-                onChange={handleInputChange}
-                className="input"
-                required={isSublimacion}
-              >
-                <option value="">Seleccionar...</option>
-                {rollos.filter(r => r.is_active).map((rollo) => (
-                  <option key={rollo.numero_rollo} value={rollo.numero_rollo}>
-                    Rollo {rollo.numero_rollo} {isSublimacion && `(${rollo.metraje_disponible}m disponibles)`}
-                  </option>
-                ))}
-              </select>
-              
-              {/* Información del rollo seleccionado */}
-              {isSublimacion && rolloSeleccionado && (
-                <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="text-sm space-y-1">
-                    <div className="flex justify-between">
-                      <span className="font-medium text-blue-900">Rollo #{rolloSeleccionado.numero_rollo}</span>
-                      <span className={`font-bold ${
-                        rolloSeleccionado.metraje_disponible < 20 ? 'text-red-600' :
-                        rolloSeleccionado.metraje_disponible < 50 ? 'text-yellow-600' :
-                        'text-green-600'
-                      }`}>
-                        {rolloSeleccionado.metraje_disponible}m disponibles
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-blue-700">
-                      <span>Metraje usado:</span>
-                      <span>{rolloSeleccionado.metraje_usado}m de {rolloSeleccionado.metraje_total}m</span>
-                    </div>
-                    {metrajeTotalRequerido > 0 && (
-                      <div className="flex justify-between text-blue-700 pt-1 border-t border-blue-200">
-                        <span className="font-medium">Requerido en este pedido:</span>
-                        <span className="font-bold">{metrajeTotalRequerido.toFixed(2)}m</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-              
-              {/* Alertas de metraje */}
-              {isSublimacion && alertaMetraje && (
-                <div className={`mt-2 p-3 rounded-lg border ${
-                  alertaMetraje.tipo === 'error' ? 'bg-red-50 border-red-300 text-red-800' :
-                  alertaMetraje.tipo === 'warning' ? 'bg-yellow-50 border-yellow-300 text-yellow-800' :
-                  'bg-green-50 border-green-300 text-green-800'
-                }`}>
-                  <p className="text-sm font-medium">{alertaMetraje.mensaje}</p>
-                </div>
-              )}
-            </div>
+            {/* Mensaje informativo para descuento automático */}
+            {isSublimacion && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <span className="font-medium">✓ Descuento automático:</span> El metraje se descontará automáticamente del primer rollo {tipoRollo} disponible comenzando desde el Rollo 1.
+                </p>
+                {metrajeTotalRequerido > 0 && (
+                  <p className="text-sm text-blue-900 mt-2 font-medium">
+                    📏 Metraje requerido: {metrajeTotalRequerido.toFixed(2)}m
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -736,15 +669,20 @@ const OrderForm = () => {
                         </div>
                         <div>
                           <label className="text-xs text-gray-600">Costo/metro (Bs)</label>
-                          <input
-                            type="number"
+                          <select
                             value={item.impresion_costo}
                             onChange={(e) => handleItemChange(index, 'impresion_costo', e.target.value)}
                             className="input"
-                            placeholder="0.00"
-                            min="0"
-                            step="0.01"
-                          />
+                          >
+                            <option value="0">Seleccionar...</option>
+                            <option value="110">110 Bs/m</option>
+                            <option value="120">120 Bs/m</option>
+                            <option value="130">130 Bs/m</option>
+                            <option value="140">140 Bs/m</option>
+                            <option value="55">55 Bs/m</option>
+                            <option value="30">30 Bs/m</option>
+                            <option value="26.5">26.5 Bs/m</option>
+                          </select>
                         </div>
                         <div>
                           <label className="text-xs text-gray-600">Subtotal</label>
