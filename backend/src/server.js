@@ -14,6 +14,7 @@ import reportRoutes from './routes/report.routes.js';
 import rolloRoutes from './routes/rollo.routes.js';
 import bankConfigRoutes from './routes/bankConfig.routes.js';
 import partialPaymentRoutes from './routes/partialPayment.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
 
 dotenv.config();
 
@@ -43,6 +44,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/bank-config', bankConfigRoutes);
 app.use('/api/rollos', rolloRoutes);
 app.use('/api/partial-payments', partialPaymentRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Ruta de health check
 app.get('/api/health', async (req, res) => {

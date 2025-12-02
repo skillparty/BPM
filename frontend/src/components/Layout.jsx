@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import GlobalSearch from './GlobalSearch';
+import NotificationCenter from './NotificationCenter';
 
 const Layout = () => {
   const { user, logout, isSuperAdmin, isColaborador } = useAuth();
@@ -253,6 +254,9 @@ const Layout = () => {
                     <span>K</span>
                   </kbd>
                 </button>
+
+                {/* Notification Center */}
+                <NotificationCenter />
 
                 {/* Date */}
                 <span className="hidden md:inline text-sm text-slate-500">
