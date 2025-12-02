@@ -23,6 +23,9 @@ router.get('/:phone/orders', clientController.getClientOrders);
 // Obtener cliente por teléfono
 router.get('/:phone', clientController.getClientById);
 
+// Importación masiva de clientes
+router.post('/bulk', clientController.bulkCreateClients);
+
 // Crear cliente
 router.post('/', [
   body('phone').notEmpty().withMessage('Teléfono requerido'),

@@ -20,9 +20,11 @@ import {
   FileText,
   User,
   Globe,
-  Hash
+  Hash,
+  Upload
 } from 'lucide-react';
 import ClientAnalytics from './ClientAnalytics';
+import BulkImportClients from '../components/BulkImportClients';
 import { useAuth } from '../context/AuthContext';
 
 const Clients = () => {
@@ -33,6 +35,7 @@ const Clients = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [showOrdersModal, setShowOrdersModal] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
   const [selectedClientOrders, setSelectedClientOrders] = useState([]);
   const [selectedClient, setSelectedClient] = useState(null);
   const [loadingOrders, setLoadingOrders] = useState(false);
@@ -227,13 +230,22 @@ const Clients = () => {
           <p className="section-subtitle">Gestiona la información de tus clientes</p>
         </div>
         {activeTab === 'list' && (
-          <button
-            onClick={() => handleOpenModal()}
-            className="btn btn-primary inline-flex items-center space-x-2"
-          >
-            <Plus className="w-5 h-5" strokeWidth={2} />
-            <span>Nuevo Cliente</span>
-          </button>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setShowBulkImport(true)}
+              className="btn btn-secondary inline-flex items-center space-x-2"
+            >
+              <Upload className="w-5 h-5" strokeWidth={2} />
+              <span>Importar Excel</span>
+            </button>
+            <button
+              onClick={() => handleOpenModal()}
+              className="btn btn-primary inline-flex items-center space-x-2"
+            >
+              <Plus className="w-5 h-5" strokeWidth={2} />
+              <span>Nuevo Cliente</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -814,6 +826,16 @@ const Clients = () => {
           </div>
         </div>
       )}
+
+      {/* Modal de Importación Masiva */}
+      <BulkImportClients
+        isOpen={showBulkImport}
+        onClose={() => setShowBulkImport(false)}
+        onSuccess={() => {
+          fetchClients();
+          setShowBulkImport(false);
+        }}
+      />
     </div>
   );
 };

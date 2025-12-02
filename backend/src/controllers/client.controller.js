@@ -369,3 +369,110 @@ export const deleteClient = async (req, res) => {
     res.status(500).json({ message: 'Error en el servidor' });
   }
 };
+
+// Importación masiva de clientes
+export const bulkCreateClients = async (req, res) => {
+  try {
+    const { clients } = req.body;
+    const userId = req.user?.id;
+
+    if (!clients || !Array.isArray(clients) || clients.length === 0) {
+      return res.status(400).json({ message: 'No se proporcionaron clientes para importar' });
+    }
+
+    const results = {
+      created: 0,
+      updated: 0,
+      failed: 0,
+      errors: []
+    };
+
+    for (const client of clients) {
+      try {
+        // Validar campos requeridos
+        if (!client.phone || !client.name) {
+          results.failed++;
+          results.errors.push({
+            phone: client.phone || 'N/A',
+            message: 'Teléfono y nombre son requeridos'
+          });
+          continue;
+        }
+
+        // Limpiar teléfono
+        const phone = client.phone.toString().replace(/\D/g, '');
+        
+        // Verificar si el cliente ya existe
+        const existingClient = await pool.query(
+          'SELECT phone FROM clients WHERE phone = $1',
+          [phone]
+        );
+
+        if (existingClient.rows.length > 0) {
+          // Actualizar cliente existente
+          await pool.query(
+            `UPDATE clients SET 
+              name = COALESCE(NULLIF($2, ''), name),
+              empresa = COALESCE(NULLIF($3, ''), empresa),
+              tipo_cliente = COALESCE(NULLIF($4, ''), tipo_cliente),
+              razon_social = COALESCE(NULLIF($5, ''), razon_social),
+              nit = COALESCE(NULLIF($6, ''), nit),
+              pais = COALESCE(NULLIF($7, ''), pais),
+              departamento = COALESCE(NULLIF($8, ''), departamento),
+              ciudad = COALESCE(NULLIF($9, ''), ciudad),
+              updated_at = NOW()
+            WHERE phone = $1`,
+            [
+              phone,
+              client.name,
+              client.empresa || '',
+              client.tipo_cliente || 'B2C',
+              client.razon_social || '',
+              client.nit || '',
+              client.pais || 'Bolivia',
+              client.departamento || '',
+              client.ciudad || ''
+            ]
+          );
+          results.updated++;
+        } else {
+          // Crear nuevo cliente
+          await pool.query(
+            `INSERT INTO clients (
+              phone, name, empresa, tipo_cliente, razon_social, 
+              nit, pais, departamento, ciudad, tipo_usuario, created_by
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Prospecto', $10)`,
+            [
+              phone,
+              client.name,
+              client.empresa || '',
+              client.tipo_cliente || 'B2C',
+              client.razon_social || '',
+              client.nit || '',
+              client.pais || 'Bolivia',
+              client.departamento || '',
+              client.ciudad || '',
+              userId
+            ]
+          );
+          results.created++;
+        }
+      } catch (clientError) {
+        console.error('Error al procesar cliente:', clientError);
+        results.failed++;
+        results.errors.push({
+          phone: client.phone,
+          message: clientError.message || 'Error desconocido'
+        });
+      }
+    }
+
+    res.json({
+      message: `Importación completada: ${results.created} creados, ${results.updated} actualizados, ${results.failed} fallidos`,
+      ...results
+    });
+  } catch (error) {
+    console.error('Error en importación masiva:', error);
+    res.status(500).json({ message: 'Error en el servidor durante la importación' });
+  }
+};

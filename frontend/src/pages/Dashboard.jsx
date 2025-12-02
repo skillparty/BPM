@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, AreaChart, Area } from 'recharts';
 import SalesGauge from '../components/SalesGauge';
+import { DashboardSkeleton } from '../components/Skeleton';
 
 const Dashboard = () => {
   const [dashboard, setDashboard] = useState(null);
@@ -141,11 +142,7 @@ const Dashboard = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   // Preparar datos para gráficos de torta (solo del mes actual)

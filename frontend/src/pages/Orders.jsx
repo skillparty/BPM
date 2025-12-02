@@ -1,9 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Plus, Search, Filter, Eye, Download, Tag, MessageCircle, Printer, CreditCard, Trash2 } from 'lucide-react';
+import { Plus, Search, Eye, MessageCircle, Printer, CreditCard, Trash2, Download, Tag } from 'lucide-react';
 import PartialPaymentsModal from '../components/PartialPaymentsModal';
+import { TableSkeleton } from '../components/Skeleton';
+import { NoOrdersFound, NoSearchResults } from '../components/EmptyState';
+import AdvancedTableControls from '../components/AdvancedTableControls';
+import { exportToExcel, exportToPDF } from '../utils/exportUtils';
+
+// Definición de columnas de la tabla
+const ALL_COLUMNS = [
+  { key: 'id', label: 'ID' },
+  { key: 'receipt_number', label: 'Recibo' },
+  { key: 'client_name', label: 'Cliente' },
+  { key: 'order_date', label: 'Fecha' },
+  { key: 'work_type_name', label: 'Tipo' },
+  { key: 'total', label: 'Total', aggregate: 'sum' },
+  { key: 'payment_status', label: 'Pago' },
+  { key: 'status', label: 'Estado' }
+];
 
 const Orders = () => {
   const [orders, setOrders] = useState([]);
@@ -13,10 +29,35 @@ const Orders = () => {
   const [paymentFilter, setPaymentFilter] = useState('');
   const [showPaymentsModal, setShowPaymentsModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [workTypes, setWorkTypes] = useState([]);
+  
+  // Estados para filtros avanzados
+  const [advancedFilters, setAdvancedFilters] = useState({
+    dateFrom: '',
+    dateTo: '',
+    workType: '',
+    minAmount: '',
+    maxAmount: ''
+  });
+  
+  // Columnas visibles (por defecto todas excepto ID)
+  const [visibleColumns, setVisibleColumns] = useState(
+    ALL_COLUMNS.filter(c => c.key !== 'id').map(c => c.key)
+  );
 
   useEffect(() => {
     fetchOrders();
+    fetchWorkTypes();
   }, [statusFilter, paymentFilter]);
+
+  const fetchWorkTypes = async () => {
+    try {
+      const response = await api.get('/payments/work-types');
+      setWorkTypes(response.data || []);
+    } catch (error) {
+      console.error('Error al cargar tipos de trabajo:', error);
+    }
+  };
 
   const downloadPDF = async (orderId, type) => {
     try {
@@ -156,10 +197,78 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
     }
   };
 
-  const filteredOrders = orders.filter(order =>
-    order.client_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.receipt_number.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filtrado avanzado con useMemo para optimización
+  const filteredOrders = useMemo(() => {
+    return orders.filter(order => {
+      // Filtro de búsqueda básica
+      const matchesSearch = !searchTerm || 
+        order.client_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.receipt_number.toLowerCase().includes(searchTerm.toLowerCase());
+
+      // Filtros avanzados
+      const matchesDateFrom = !advancedFilters.dateFrom || 
+        new Date(order.order_date) >= new Date(advancedFilters.dateFrom);
+      
+      const matchesDateTo = !advancedFilters.dateTo || 
+        new Date(order.order_date) <= new Date(advancedFilters.dateTo);
+      
+      const matchesWorkType = !advancedFilters.workType || 
+        order.work_type_id === parseInt(advancedFilters.workType);
+      
+      const matchesMinAmount = !advancedFilters.minAmount || 
+        parseFloat(order.total) >= parseFloat(advancedFilters.minAmount);
+      
+      const matchesMaxAmount = !advancedFilters.maxAmount || 
+        parseFloat(order.total) <= parseFloat(advancedFilters.maxAmount);
+
+      return matchesSearch && matchesDateFrom && matchesDateTo && 
+             matchesWorkType && matchesMinAmount && matchesMaxAmount;
+    });
+  }, [orders, searchTerm, advancedFilters]);
+
+  // Funciones de exportación
+  const handleExportExcel = () => {
+    const columnsToExport = ALL_COLUMNS
+      .filter(c => visibleColumns.includes(c.key))
+      .map(c => ({ ...c, visible: true }));
+    
+    const dataToExport = filteredOrders.map(order => ({
+      ...order,
+      order_date: new Date(order.order_date + 'T12:00:00').toLocaleDateString('es-BO'),
+      total: parseFloat(order.total).toFixed(2)
+    }));
+    
+    exportToExcel(dataToExport, columnsToExport, 'pedidos');
+    toast.success('Exportación a Excel iniciada');
+  };
+
+  const handleExportPDF = () => {
+    const columnsToExport = ALL_COLUMNS
+      .filter(c => visibleColumns.includes(c.key))
+      .map(c => ({ ...c, visible: true }));
+    
+    const dataToExport = filteredOrders.map(order => ({
+      ...order,
+      order_date: new Date(order.order_date + 'T12:00:00').toLocaleDateString('es-BO'),
+      total: parseFloat(order.total).toFixed(2)
+    }));
+    
+    exportToPDF(dataToExport, columnsToExport, 'pedidos', 'Reporte de Pedidos');
+    toast.success('Generando PDF...');
+  };
+
+  const handleResetFilters = () => {
+    setAdvancedFilters({
+      dateFrom: '',
+      dateTo: '',
+      workType: '',
+      minAmount: '',
+      maxAmount: ''
+    });
+    setStatusFilter('');
+    setPaymentFilter('');
+    setSearchTerm('');
+  };
 
   const getStatusBadge = (status) => {
     const badges = {
@@ -180,11 +289,7 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-      </div>
-    );
+    return <TableSkeleton rows={8} columns={7} />;
   }
 
   return (
@@ -201,7 +306,7 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
         </Link>
       </div>
 
-      {/* Filters */}
+      {/* Búsqueda rápida y filtros básicos */}
       <div className="card">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-2">
@@ -245,39 +350,77 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
         </div>
       </div>
 
+      {/* Controles Avanzados de Tabla */}
+      <AdvancedTableControls
+        filters={advancedFilters}
+        onFiltersChange={setAdvancedFilters}
+        onResetFilters={handleResetFilters}
+        columns={ALL_COLUMNS}
+        visibleColumns={visibleColumns}
+        onColumnsChange={setVisibleColumns}
+        onExportExcel={handleExportExcel}
+        onExportPDF={handleExportPDF}
+        workTypes={workTypes}
+        totalRecords={orders.length}
+        filteredRecords={filteredOrders.length}
+      />
+
       {/* Orders Table */}
-      <div className="card overflow-hidden p-0">
+      {orders.length === 0 ? (
+        <NoOrdersFound />
+      ) : filteredOrders.length === 0 ? (
+        <NoSearchResults query={searchTerm} />
+      ) : (
+      <div className="card overflow-hidden p-0 animate-fade-in">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-slate-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Recibo
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Cliente
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Día
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Fecha
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Tipo
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Total
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Pago
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Estado
-                </th>
+                {visibleColumns.includes('id') && (
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    ID
+                  </th>
+                )}
+                {visibleColumns.includes('receipt_number') && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    Recibo
+                  </th>
+                )}
+                {visibleColumns.includes('client_name') && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    Cliente
+                  </th>
+                )}
+                {visibleColumns.includes('order_date') && (
+                  <>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                      Día
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                      Fecha
+                    </th>
+                  </>
+                )}
+                {visibleColumns.includes('work_type_name') && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    Tipo
+                  </th>
+                )}
+                {visibleColumns.includes('total') && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    Total
+                  </th>
+                )}
+                {visibleColumns.includes('payment_status') && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    Pago
+                  </th>
+                )}
+                {visibleColumns.includes('status') && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    Estado
+                  </th>
+                )}
                 <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Acciones
                 </th>
@@ -285,54 +428,72 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredOrders.map((order) => (
-                <tr key={order.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-4 whitespace-nowrap">
-                    <div className="text-sm font-semibold text-primary-600">
-                      {order.id}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-slate-900">
-                      {order.receipt_number}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-slate-900">{order.client_name}</div>
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap">
-                    <div className="text-sm text-slate-700 font-medium">
-                      {(() => {
-                        const date = new Date(order.order_date + 'T12:00:00');
-                        return date.toLocaleDateString('es-BO', { weekday: 'long' });
-                      })()}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-slate-500">
-                      {(() => {
-                        const date = new Date(order.order_date + 'T12:00:00');
-                        return date.toLocaleDateString('es-BO');
-                      })()}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-slate-500">{order.work_type_name || '-'}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-semibold text-slate-900">
-                      Bs. {parseFloat(order.total || 0).toFixed(2)}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`badge ${getPaymentBadge(order.payment_status)}`}>
-                      {order.payment_status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`badge ${getStatusBadge(order.status)}`}>
-                      {order.status}
-                    </span>
-                  </td>
+                <tr key={order.id} className="hover:bg-slate-50 table-row-hover">
+                  {visibleColumns.includes('id') && (
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="text-sm font-semibold text-primary-600">
+                        {order.id}
+                      </div>
+                    </td>
+                  )}
+                  {visibleColumns.includes('receipt_number') && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-slate-900">
+                        {order.receipt_number}
+                      </div>
+                    </td>
+                  )}
+                  {visibleColumns.includes('client_name') && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-slate-900">{order.client_name}</div>
+                    </td>
+                  )}
+                  {visibleColumns.includes('order_date') && (
+                    <>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="text-sm text-slate-700 font-medium">
+                          {(() => {
+                            const date = new Date(order.order_date + 'T12:00:00');
+                            return date.toLocaleDateString('es-BO', { weekday: 'long' });
+                          })()}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-slate-500">
+                          {(() => {
+                            const date = new Date(order.order_date + 'T12:00:00');
+                            return date.toLocaleDateString('es-BO');
+                          })()}
+                        </div>
+                      </td>
+                    </>
+                  )}
+                  {visibleColumns.includes('work_type_name') && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-slate-500">{order.work_type_name || '-'}</div>
+                    </td>
+                  )}
+                  {visibleColumns.includes('total') && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-semibold text-slate-900">
+                        Bs. {parseFloat(order.total || 0).toFixed(2)}
+                      </div>
+                    </td>
+                  )}
+                  {visibleColumns.includes('payment_status') && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`badge ${getPaymentBadge(order.payment_status)}`}>
+                        {order.payment_status}
+                      </span>
+                    </td>
+                  )}
+                  {visibleColumns.includes('status') && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`badge ${getStatusBadge(order.status)}`}>
+                        {order.status}
+                      </span>
+                    </td>
+                  )}
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
                       <Link
@@ -410,13 +571,8 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
             </tbody>
           </table>
         </div>
-
-        {filteredOrders.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-slate-500">No se encontraron pedidos</p>
-          </div>
-        )}
       </div>
+      )}
 
       {/* Modal de Pagos Parciales */}
       {showPaymentsModal && selectedOrder && (
