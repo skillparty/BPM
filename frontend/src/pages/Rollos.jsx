@@ -1,18 +1,12 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Package, Edit2, RotateCcw, History, X, Save } from 'lucide-react';
+import { Package, RotateCcw, History, X } from 'lucide-react';
 
 const Rollos = () => {
   const [rollos, setRollos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [selectedRollo, setSelectedRollo] = useState(null);
   const [tipoActivo, setTipoActivo] = useState('DTF'); // DTF o SUBLIM
-  const [formData, setFormData] = useState({
-    metraje_total: '',
-    notas: ''
-  });
 
   useEffect(() => {
     fetchRollos();
@@ -31,43 +25,24 @@ const Rollos = () => {
     }
   };
 
-  const handleOpenModal = (rollo) => {
-    setSelectedRollo(rollo);
-    setFormData({
-      metraje_total: rollo.metraje_total || '',
-      notas: rollo.notas || ''
-    });
-    setShowModal(true);
-  };
-
-  const handleCloseModal = () => {
-    setShowModal(false);
-    setSelectedRollo(null);
-    setFormData({ metraje_total: '', notas: '' });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!formData.metraje_total || formData.metraje_total <= 0) {
-      toast.error('El metraje debe ser mayor a 0');
+  const handleRestablecer = async (rollo) => {
+    if (!window.confirm(`¿Estás seguro de restablecer el rollo ${rollo.tipo} ${rollo.numero_rollo}? Se reiniciará a 100 metros.`)) {
       return;
     }
-
+    
     try {
-      await api.put('/rollos/actualizar-metraje', {
-        numero_rollo: selectedRollo.numero_rollo,
-        tipo: selectedRollo.tipo,
-        metraje_total: parseFloat(formData.metraje_total),
-        notas: formData.notas
+      await api.post('/rollos/restablecer', {
+        numero_rollo: rollo.numero_rollo,
+        tipo: rollo.tipo,
+        metraje_total: 100,
+        notas: `Rollo ${rollo.tipo} restablecido a 100 metros`
       });
-
-      toast.success(`Rollo ${selectedRollo.tipo} ${selectedRollo.numero_rollo} actualizado correctamente`);
-      handleCloseModal();
+      
+      toast.success(`Rollo ${rollo.tipo} ${rollo.numero_rollo} restablecido exitosamente`);
       fetchRollos();
     } catch (error) {
-      console.error('Error al actualizar rollo:', error);
-      toast.error(error.response?.data?.message || 'Error al actualizar el rollo');
+      console.error('Error al restablecer rollo:', error);
+      toast.error('Error al restablecer el rollo');
     }
   };
 
@@ -139,11 +114,11 @@ const Rollos = () => {
                 </h3>
               </div>
               <button
-                onClick={() => handleOpenModal(rollo)}
+                onClick={() => handleRestablecer(rollo)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                title="Configurar metraje"
+                title="Restablecer rollo a 100m"
               >
-                <Edit2 className="w-4 h-4 text-gray-600" />
+                <RotateCcw className="w-4 h-4 text-blue-600" />
               </button>
             </div>
 
@@ -201,79 +176,6 @@ const Rollos = () => {
         ))}
       </div>
 
-      {/* Modal de Configuración */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900">
-                Configurar Rollo <span className={selectedRollo?.tipo === 'DTF' ? 'text-blue-600' : 'text-pink-600'}>
-                  {selectedRollo?.tipo}
-                </span> {selectedRollo?.numero_rollo}
-              </h2>
-              <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-600">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Metraje Total (metros)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.metraje_total}
-                  onChange={(e) => setFormData({ ...formData, metraje_total: e.target.value })}
-                  className="input"
-                  placeholder="Ej: 105.00"
-                  required
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Ingresa la cantidad exacta de metros del rollo nuevo
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Notas (opcional)
-                </label>
-                <textarea
-                  value={formData.notas}
-                  onChange={(e) => setFormData({ ...formData, notas: e.target.value })}
-                  className="input"
-                  rows="3"
-                  placeholder="Ej: Rollo instalado el 06/11/2025"
-                />
-              </div>
-
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                <p className="text-sm text-yellow-800">
-                  <strong>Advertencia:</strong> Esta acción reiniciará el contador del rollo {selectedRollo?.numero_rollo} con el nuevo metraje.
-                </p>
-              </div>
-
-              <div className="flex space-x-3">
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  className="flex-1 btn btn-secondary"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 btn btn-primary inline-flex items-center justify-center space-x-2"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Guardar</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

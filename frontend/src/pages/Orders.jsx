@@ -192,8 +192,8 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Pedidos</h1>
-          <p className="text-gray-500 mt-1">Gestiona todos los pedidos y recibos</p>
+          <h1 className="text-2xl font-bold text-slate-900">Pedidos</h1>
+          <p className="text-slate-500 mt-1">Gestiona todos los pedidos y recibos</p>
         </div>
         <Link to="/orders/new" className="btn btn-primary inline-flex items-center space-x-2">
           <Plus className="w-5 h-5" />
@@ -206,7 +206,7 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-2">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
               <input
                 type="text"
                 placeholder="Buscar por cliente o número de recibo..."
@@ -249,58 +249,58 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
       <div className="card overflow-hidden p-0">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-slate-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   ID
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Recibo
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Cliente
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Día
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Fecha
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Tipo
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Total
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Pago
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Estado
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Acciones
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredOrders.map((order) => (
-                <tr key={order.id} className="hover:bg-gray-50">
+                <tr key={order.id} className="hover:bg-slate-50">
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="text-sm font-semibold text-primary-600">
                       {order.id}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
+                    <div className="text-sm font-medium text-slate-900">
                       {order.receipt_number}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{order.client_name}</div>
+                    <div className="text-sm text-slate-900">{order.client_name}</div>
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-700 font-medium">
+                    <div className="text-sm text-slate-700 font-medium">
                       {(() => {
                         const date = new Date(order.order_date + 'T12:00:00');
                         return date.toLocaleDateString('es-BO', { weekday: 'long' });
@@ -308,7 +308,7 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-slate-500">
                       {(() => {
                         const date = new Date(order.order_date + 'T12:00:00');
                         return date.toLocaleDateString('es-BO');
@@ -316,10 +316,10 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500">{order.work_type_name || '-'}</div>
+                    <div className="text-sm text-slate-500">{order.work_type_name || '-'}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-semibold text-gray-900">
+                    <div className="text-sm font-semibold text-slate-900">
                       Bs. {parseFloat(order.total || 0).toFixed(2)}
                     </div>
                   </td>
@@ -413,7 +413,7 @@ Te enviare el QR de pago en un momento para que puedas realizar la transferencia
 
         {filteredOrders.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500">No se encontraron pedidos</p>
+            <p className="text-slate-500">No se encontraron pedidos</p>
           </div>
         )}
       </div>

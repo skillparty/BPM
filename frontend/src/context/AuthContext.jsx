@@ -62,6 +62,10 @@ export const AuthProvider = ({ children }) => {
     return user?.role === 'super_admin';
   };
 
+  const isColaborador = () => {
+    return user?.role === 'colaborador';
+  };
+
   const value = {
     user,
     token,
@@ -69,6 +73,7 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     isSuperAdmin,
+    isColaborador,
     isAuthenticated: !!token
   };
 

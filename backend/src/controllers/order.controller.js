@@ -33,7 +33,7 @@ const generateReceiptNumber = async () => {
 // Obtener todos los pedidos
 export const getAllOrders = async (req, res) => {
   try {
-    const { page = 1, limit = 50, status, payment_status, date_from, date_to } = req.query;
+    const { page = 1, limit = 50, status, payment_status, date_from, date_to, work_type, period } = req.query;
     const offset = (page - 1) * limit;
 
     let query = `
@@ -65,6 +65,26 @@ export const getAllOrders = async (req, res) => {
       query += ` AND o.payment_status = $${paramIndex}`;
       params.push(payment_status);
       paramIndex++;
+    }
+
+    // Filtro por tipo de trabajo (nombre)
+    if (work_type) {
+      query += ` AND wt.name = $${paramIndex}`;
+      params.push(work_type);
+      paramIndex++;
+    }
+
+    // Filtro por período
+    if (period) {
+      if (period === 'today') {
+        query += ` AND DATE(o.order_date) = CURRENT_DATE`;
+      } else if (period === 'month') {
+        query += ` AND DATE_TRUNC('month', o.order_date) = DATE_TRUNC('month', CURRENT_DATE)`;
+      } else if (period === 'year') {
+        query += ` AND DATE_TRUNC('year', o.order_date) = DATE_TRUNC('year', CURRENT_DATE)`;
+      } else if (period === 'pending') {
+        // Para pendientes, no filtramos por fecha, solo por estado de pago (ya filtrado arriba)
+      }
     }
 
     if (date_from) {
@@ -266,15 +286,18 @@ export const createOrder = async (req, res) => {
       
       await client.query(
         `INSERT INTO order_items (
-          order_id, item_number, 
+          order_id, item_number, description, quantity, unit_price,
           impresion_metraje, impresion_costo, impresion_subtotal,
           planchado_cantidad, planchado_costo, planchado_subtotal,
           insignia_cantidad, insignia_costo, insignia_subtotal,
           total
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
         [
           order.id,
           i + 1,
+          item.description || 'Item ' + (i + 1),
+          item.quantity || 1,
+          item.unit_price || item.total || 0,
           item.impresion_metraje || 0,
           item.impresion_costo || 0,
           item.impresion_subtotal || 0,

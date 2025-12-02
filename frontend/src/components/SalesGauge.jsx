@@ -35,6 +35,10 @@ const SalesGauge = ({ current, target = 400, type = 'pedidos' }) => {
   const formatValue = (value) => {
     if (type === 'dinero') {
       return `Bs. ${value.toFixed(2)}`;
+    } else if (type === 'metros') {
+      return `${value.toFixed(0)} m`;
+    } else if (type === 'unidades') {
+      return `${value} unidades`;
     }
     return value;
   };

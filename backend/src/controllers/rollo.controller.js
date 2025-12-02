@@ -111,7 +111,67 @@ export const verificarDisponibilidad = async (req, res) => {
   }
 };
 
-// Descontar metraje de un rollo
+// Descontar metraje automáticamente (para DTF, DTF+, DTF+PL)
+export const descontarMetrajeAutomatico = async (req, res) => {
+  try {
+    const { tipo, metraje, order_id, client_name } = req.body;
+
+    if (!tipo || !metraje) {
+      return res.status(400).json({ 
+        message: 'Tipo y metraje son obligatorios' 
+      });
+    }
+
+    // Buscar el primer rollo del tipo especificado con espacio suficiente
+    const rolloDisponible = await pool.query(
+      `SELECT numero_rollo, metraje_disponible
+       FROM rollos
+       WHERE tipo = $1 
+         AND is_active = true 
+         AND metraje_disponible >= $2
+       ORDER BY numero_rollo ASC
+       LIMIT 1`,
+      [tipo, metraje]
+    );
+
+    if (rolloDisponible.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        mensaje: `No hay rollos ${tipo} disponibles con ${metraje}m de metraje`
+      });
+    }
+
+    const numero_rollo = rolloDisponible.rows[0].numero_rollo;
+    const notas = `Pedido #${order_id || 'N/A'} - Cliente: ${client_name || 'N/A'}`;
+
+    // Descontar del rollo encontrado
+    const result = await pool.query(
+      `SELECT * FROM descontar_metraje_rollo($1, $2, $3, $4, $5, $6)`,
+      [numero_rollo, tipo, metraje, order_id, req.user.id, notas]
+    );
+
+    const response = result.rows[0];
+
+    if (response.success) {
+      res.json({
+        success: true,
+        numero_rollo,
+        metraje_disponible: parseFloat(response.metraje_disponible),
+        mensaje: `Descontados ${metraje}m del rollo ${tipo} ${numero_rollo}. ${response.mensaje}`
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        mensaje: response.mensaje
+      });
+    }
+  } catch (error) {
+    console.error('Error al descontar metraje automático:', error);
+    res.status(500).json({ message: 'Error en el servidor' });
+  }
+};
+
+// Descontar metraje de un rollo específico (para SUBLIM)
 export const descontarMetraje = async (req, res) => {
   try {
     const { numero_rollo, tipo, metraje, order_id, notas } = req.body;

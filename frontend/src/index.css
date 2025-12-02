@@ -2,63 +2,198 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Inter Font - Tipografía profesional sans-serif */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
 @layer base {
-  body {
-    @apply bg-gray-50 text-gray-900;
+  :root {
+    /* Colores del sistema ERP */
+    --color-primary: #1e4af1;
+    --color-primary-light: #3668fc;
+    --color-primary-dark: #1839de;
+    --color-success: #10b981;
+    --color-danger: #ef4444;
+    --color-warning: #f59e0b;
+    --color-text: #1e293b;
+    --color-text-secondary: #64748b;
+    --color-bg: #f8fafc;
+    --color-bg-card: #ffffff;
   }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-800;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    letter-spacing: -0.011em;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* Texto principal en gris oscuro para mejor legibilidad */
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-slate-900 font-semibold tracking-tight;
+  }
+
+  p {
+    @apply text-slate-700;
+  }
+
+  /* Paleta de colores para Colaboradores */
+  .role-colaborador {
+    --color-primary-50: #fff7ed;
+    --color-primary-100: #ffedd5;
+    --color-primary-200: #fed7aa;
+    --color-primary-300: #fdba74;
+    --color-primary-400: #fb923c;
+    --color-primary-500: #f97316;
+    --color-primary-600: #ea580c;
+    --color-primary-700: #c2410c;
+    --color-primary-800: #9a3412;
+    --color-primary-900: #7c2d12;
+  }
+
+  .role-colaborador .bg-primary-50 { background-color: var(--color-primary-50) !important; }
+  .role-colaborador .bg-primary-100 { background-color: var(--color-primary-100) !important; }
+  .role-colaborador .bg-primary-600 { background-color: var(--color-primary-600) !important; }
+  .role-colaborador .bg-primary-700 { background-color: var(--color-primary-700) !important; }
+  .role-colaborador .hover\:bg-primary-700:hover { background-color: var(--color-primary-700) !important; }
+  .role-colaborador .text-primary-600 { color: var(--color-primary-600) !important; }
+  .role-colaborador .text-primary-700 { color: var(--color-primary-700) !important; }
+  .role-colaborador .text-primary-900 { color: var(--color-primary-900) !important; }
+  .role-colaborador .border-primary-600 { border-color: var(--color-primary-600) !important; }
+  .role-colaborador .focus\:ring-primary-500:focus { --tw-ring-color: var(--color-primary-500) !important; }
 }
 
 @layer components {
+  /* Professional ERP Buttons */
   .btn {
-    @apply px-4 py-2 rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+    @apply px-5 py-2.5 rounded-lg font-medium transition-all duration-150 ease-out;
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+    @apply active:scale-[0.98];
   }
 
   .btn-primary {
     @apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+    @apply shadow-sm hover:shadow-md shadow-primary-600/20;
   }
 
   .btn-secondary {
-    @apply bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-500;
+    @apply bg-slate-100 text-slate-700 hover:bg-slate-200 focus:ring-slate-400;
+    @apply border border-slate-200;
   }
 
   .btn-success {
-    @apply bg-green-600 text-white hover:bg-green-700 focus:ring-green-500;
+    @apply bg-emerald-500 text-white hover:bg-emerald-600 focus:ring-emerald-400;
+    @apply shadow-sm hover:shadow-md shadow-emerald-500/20;
   }
 
   .btn-danger {
-    @apply bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+    @apply bg-red-500 text-white hover:bg-red-600 focus:ring-red-400;
+    @apply shadow-sm hover:shadow-md shadow-red-500/20;
   }
 
+  .btn-warning {
+    @apply bg-amber-500 text-white hover:bg-amber-600 focus:ring-amber-400;
+    @apply shadow-sm hover:shadow-md shadow-amber-500/20;
+  }
+
+  /* Professional Cards */
   .card {
-    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
+    @apply bg-white rounded-xl p-6;
+    @apply border border-slate-200 shadow-sm;
+    @apply transition-all duration-200;
   }
 
+  .card:hover {
+    @apply shadow-md border-slate-300;
+  }
+
+  /* Professional Inputs */
   .input {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+    @apply w-full px-4 py-2.5 rounded-lg;
+    @apply bg-white border border-slate-300;
+    @apply text-slate-900 placeholder:text-slate-400;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500;
+    @apply transition-all duration-150;
+  }
+
+  .input:hover:not(:focus) {
+    @apply border-slate-400;
   }
 
   .label {
-    @apply block text-sm font-medium text-gray-700 mb-1;
+    @apply block text-sm font-medium text-slate-700 mb-1.5;
   }
 
+  /* Professional Badges */
   .badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold;
   }
 
   .badge-success {
-    @apply bg-green-100 text-green-800;
+    @apply bg-emerald-50 text-emerald-700 border border-emerald-200;
   }
 
   .badge-warning {
-    @apply bg-yellow-100 text-yellow-800;
+    @apply bg-amber-50 text-amber-700 border border-amber-200;
   }
 
   .badge-danger {
-    @apply bg-red-100 text-red-800;
+    @apply bg-red-50 text-red-700 border border-red-200;
   }
 
   .badge-info {
-    @apply bg-blue-100 text-blue-800;
+    @apply bg-primary-50 text-primary-700 border border-primary-200;
+  }
+
+  /* Professional Table */
+  .table-header {
+    @apply px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-50;
+  }
+
+  .table-cell {
+    @apply px-4 py-3 text-sm text-slate-700;
+  }
+
+  /* Professional Modal */
+  .modal-overlay {
+    @apply fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4;
+  }
+
+  .modal-content {
+    @apply bg-white rounded-xl shadow-2xl;
+    @apply border border-slate-200;
+    @apply transform transition-all duration-200;
+  }
+
+  /* Section Headers */
+  .section-title {
+    @apply text-xl font-semibold text-slate-900 tracking-tight;
+  }
+
+  .section-subtitle {
+    @apply text-sm text-slate-500 mt-0.5;
+  }
+
+  /* Status indicators */
+  .status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+
+  .status-success {
+    @apply bg-emerald-500;
+  }
+
+  .status-warning {
+    @apply bg-amber-500;
+  }
+
+  .status-danger {
+    @apply bg-red-500;
   }
 }
 

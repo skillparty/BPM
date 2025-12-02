@@ -19,7 +19,10 @@ router.get('/:numero/historial', rolloController.getHistorialRollo);
 // Verificar disponibilidad de metraje
 router.post('/verificar-disponibilidad', rolloController.verificarDisponibilidad);
 
-// Descontar metraje
+// Descontar metraje automáticamente (DTF, DTF+, DTF+PL)
+router.post('/descontar-automatico', rolloController.descontarMetrajeAutomatico);
+
+// Descontar metraje de rollo específico (SUBLIM)
 router.post('/descontar', rolloController.descontarMetraje);
 
 // Actualizar metraje total manualmente

@@ -457,10 +457,10 @@ const OrderForm = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-slate-900">
             {isEdit ? 'Editar Pedido' : 'Nuevo Pedido'}
           </h1>
-          <p className="text-gray-500 mt-1">
+          <p className="text-slate-500 mt-1">
             {isEdit ? 'Modifica los datos del pedido' : 'Completa los datos del nuevo pedido'}
           </p>
         </div>
@@ -476,7 +476,7 @@ const OrderForm = () => {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Información del Cliente */}
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Información del Cliente</h3>
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">Información del Cliente</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="client_select" className="label">
@@ -496,7 +496,7 @@ const OrderForm = () => {
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-slate-500">
                 Si el cliente no existe, por favor créalo desde el módulo de Clientes primero.
               </p>
             </div>
@@ -510,7 +510,7 @@ const OrderForm = () => {
                 id="client_name"
                 name="client_name"
                 value={formData.client_name}
-                className="input bg-gray-100"
+                className="input bg-slate-100"
                 readOnly
                 disabled
               />
@@ -538,7 +538,7 @@ const OrderForm = () => {
                 id="order_day"
                 name="order_day"
                 value={formData.order_day}
-                className="input bg-gray-50"
+                className="input bg-slate-50"
                 readOnly
                 placeholder="Se calculará automáticamente"
               />
@@ -548,7 +548,7 @@ const OrderForm = () => {
 
         {/* Detalles del Trabajo */}
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Detalles del Trabajo</h3>
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">Detalles del Trabajo</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="work_type_id" className="label">
@@ -572,8 +572,8 @@ const OrderForm = () => {
               
               {/* Indicador de módulos habilitados */}
               {formData.work_type_id && (
-                <div className="mt-2 p-2 bg-gray-50 border border-gray-200 rounded-lg">
-                  <p className="text-xs font-medium text-gray-700 mb-1">Módulos disponibles:</p>
+                <div className="mt-2 p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  <p className="text-xs font-medium text-slate-700 mb-1">Módulos disponibles:</p>
                   <div className="flex flex-wrap gap-2">
                     {modulosHabilitados.impresion && (
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
@@ -614,7 +614,7 @@ const OrderForm = () => {
         {/* Items */}
         <div className="card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Items del Pedido</h3>
+            <h3 className="text-lg font-semibold text-slate-900">Items del Pedido</h3>
             <button
               type="button"
               onClick={addItem}
@@ -627,9 +627,9 @@ const OrderForm = () => {
 
           <div className="space-y-6">
             {formData.items.map((item, index) => (
-              <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <div key={index} className="border border-slate-200 rounded-lg p-4 bg-slate-50">
                 <div className="flex justify-between items-center mb-4">
-                  <h4 className="font-semibold text-gray-900">Item #{index + 1}</h4>
+                  <h4 className="font-semibold text-slate-900">Item #{index + 1}</h4>
                   <button
                     type="button"
                     onClick={() => removeItem(index)}
@@ -648,15 +648,15 @@ const OrderForm = () => {
                         type="checkbox"
                         checked={item.useImpresion}
                         onChange={(e) => handleItemChange(index, 'useImpresion', e.target.checked)}
-                        className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                        className="w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500"
                       />
-                      <span className="font-medium text-gray-900">Impresión</span>
+                      <span className="font-medium text-slate-900">Impresión</span>
                     </label>
                   
                     {item.useImpresion && (
                       <div className="grid grid-cols-3 gap-3 ml-6">
                         <div>
-                          <label className="text-xs text-gray-600">Metraje</label>
+                          <label className="text-xs text-slate-600">Metraje</label>
                           <input
                             type="number"
                             value={item.impresion_metraje}
@@ -668,7 +668,7 @@ const OrderForm = () => {
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-gray-600">Costo/metro (Bs)</label>
+                          <label className="text-xs text-slate-600">Costo/metro (Bs)</label>
                           <select
                             value={item.impresion_costo}
                             onChange={(e) => handleItemChange(index, 'impresion_costo', e.target.value)}
@@ -685,7 +685,7 @@ const OrderForm = () => {
                           </select>
                         </div>
                         <div>
-                          <label className="text-xs text-gray-600">Subtotal</label>
+                          <label className="text-xs text-slate-600">Subtotal</label>
                           <input
                             type="number"
                             value={item.impresion_subtotal.toFixed(2)}
@@ -706,15 +706,15 @@ const OrderForm = () => {
                         type="checkbox"
                         checked={item.usePlanchado}
                         onChange={(e) => handleItemChange(index, 'usePlanchado', e.target.checked)}
-                        className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                        className="w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500"
                       />
-                      <span className="font-medium text-gray-900">Planchado</span>
+                      <span className="font-medium text-slate-900">Planchado</span>
                     </label>
                   
                     {item.usePlanchado && (
                       <div className="grid grid-cols-3 gap-3 ml-6">
                         <div>
-                          <label className="text-xs text-gray-600">Cantidad</label>
+                          <label className="text-xs text-slate-600">Cantidad</label>
                           <input
                             type="number"
                             value={item.planchado_cantidad}
@@ -726,7 +726,7 @@ const OrderForm = () => {
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-gray-600">Costo/unidad (Bs)</label>
+                          <label className="text-xs text-slate-600">Costo/unidad (Bs)</label>
                           <input
                             type="number"
                             value={item.planchado_costo}
@@ -738,7 +738,7 @@ const OrderForm = () => {
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-gray-600">Subtotal</label>
+                          <label className="text-xs text-slate-600">Subtotal</label>
                           <input
                             type="number"
                             value={item.planchado_subtotal.toFixed(2)}
@@ -759,15 +759,15 @@ const OrderForm = () => {
                         type="checkbox"
                         checked={item.useInsignia}
                         onChange={(e) => handleItemChange(index, 'useInsignia', e.target.checked)}
-                        className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                        className="w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500"
                       />
-                      <span className="font-medium text-gray-900">Insignias Texturizadas</span>
+                      <span className="font-medium text-slate-900">Insignias Texturizadas</span>
                     </label>
                   
                     {item.useInsignia && (
                       <div className="grid grid-cols-3 gap-3 ml-6">
                         <div>
-                          <label className="text-xs text-gray-600">Cantidad</label>
+                          <label className="text-xs text-slate-600">Cantidad</label>
                           <input
                             type="number"
                             value={item.insignia_cantidad}
@@ -779,7 +779,7 @@ const OrderForm = () => {
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-gray-600">Costo/unidad (Bs)</label>
+                          <label className="text-xs text-slate-600">Costo/unidad (Bs)</label>
                           <input
                             type="number"
                             value={item.insignia_costo}
@@ -791,7 +791,7 @@ const OrderForm = () => {
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-gray-600">Subtotal</label>
+                          <label className="text-xs text-slate-600">Subtotal</label>
                           <input
                             type="number"
                             value={item.insignia_subtotal.toFixed(2)}
@@ -805,10 +805,10 @@ const OrderForm = () => {
                 )}
 
                 {/* Total del Item */}
-                <div className="flex justify-end pt-3 border-t border-gray-300">
+                <div className="flex justify-end pt-3 border-t border-slate-300">
                   <div className="text-right">
-                    <span className="text-sm text-gray-600">Total Item:</span>
-                    <span className="ml-2 text-lg font-bold text-gray-900">
+                    <span className="text-sm text-slate-600">Total Item:</span>
+                    <span className="ml-2 text-lg font-bold text-slate-900">
                       Bs. {item.total.toFixed(2)}
                     </span>
                   </div>
@@ -817,11 +817,11 @@ const OrderForm = () => {
             ))}
           </div>
 
-          <div className="mt-4 pt-4 border-t border-gray-200">
+          <div className="mt-4 pt-4 border-t border-slate-200">
             <div className="flex justify-end">
               <div className="text-right">
-                <p className="text-sm text-gray-600">Total</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-sm text-slate-600">Total</p>
+                <p className="text-2xl font-bold text-slate-900">
                   Bs. {calculateTotal().toFixed(2)}
                 </p>
               </div>
@@ -831,7 +831,7 @@ const OrderForm = () => {
 
         {/* Información de Pago */}
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Información de Pago</h3>
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">Información de Pago</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label htmlFor="payment_type_id" className="label">
