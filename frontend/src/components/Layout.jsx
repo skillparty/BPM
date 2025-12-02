@@ -19,6 +19,7 @@ import {
 import { useState, useEffect, useCallback } from 'react';
 import GlobalSearch from './GlobalSearch';
 import NotificationCenter from './NotificationCenter';
+import PageTransition from './PageTransition';
 
 const Layout = () => {
   const { user, logout, isSuperAdmin, isColaborador } = useAuth();
@@ -276,7 +277,9 @@ const Layout = () => {
 
         {/* Page content */}
         <main className="p-4 sm:p-6 lg:p-8">
-          <Outlet />
+          <PageTransition>
+            <Outlet />
+          </PageTransition>
         </main>
       </div>
     </div>

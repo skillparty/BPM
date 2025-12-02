@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Plus, Trash2, Save, X } from 'lucide-react';
+import { Plus, Trash2, Save, X, Clock, User } from 'lucide-react';
+import SmartAutocomplete from '../components/SmartAutocomplete';
+import { AutosaveIndicator } from '../components/FormHelpers';
+import { useAutosave } from '../hooks/useFormValidation';
 
 const OrderForm = () => {
   const { id } = useParams();
@@ -31,6 +34,8 @@ const OrderForm = () => {
   const initialDate = new Date();
   const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   const initialDay = days[initialDate.getDay()];
+
+  const [clientSearch, setClientSearch] = useState('');
 
   const [formData, setFormData] = useState({
     client_name: '',
@@ -64,6 +69,32 @@ const OrderForm = () => {
       total: 0
     }]
   });
+
+  // Autosave para borradores (solo en modo crear)
+  const { lastSaved, isSaving, getDraft, clearDraft, hasDraft } = useAutosave(
+    'order_draft',
+    isEdit ? null : formData,
+    5000
+  );
+
+  // Restaurar borrador al cargar
+  useEffect(() => {
+    if (!isEdit && hasDraft()) {
+      const draft = getDraft();
+      if (draft && draft.client_name) {
+        // Mostrar opción de restaurar
+      }
+    }
+  }, []);
+
+  const handleRestoreDraft = () => {
+    const draft = getDraft();
+    if (draft) {
+      setFormData(draft);
+      setClientSearch(draft.client_name || '');
+      toast.success('Borrador restaurado');
+    }
+  };
 
   useEffect(() => {
     fetchCatalogs();
@@ -276,23 +307,6 @@ const OrderForm = () => {
     }
   };
 
-  const handleClientChange = (e) => {
-    const value = e.target.value;
-    
-    if (value) {
-      const selectedClient = clients.find(c => c.phone === value);
-      if (selectedClient) {
-        setFormData(prev => ({ 
-          ...prev, 
-          client_phone: selectedClient.phone, 
-          client_name: selectedClient.name 
-        }));
-      }
-    } else {
-      setFormData(prev => ({ ...prev, client_phone: null, client_name: '' }));
-    }
-  };
-
   const handleItemChange = (index, field, value) => {
     const newItems = [...formData.items];
     newItems[index][field] = value;
@@ -440,6 +454,9 @@ const OrderForm = () => {
         } else {
           toast.success('Pedido creado exitosamente');
         }
+        
+        // Limpiar borrador al crear exitosamente
+        clearDraft();
       }
       
       navigate('/orders');
@@ -476,43 +493,68 @@ const OrderForm = () => {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Información del Cliente */}
         <div className="card">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Información del Cliente</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-slate-900">Información del Cliente</h3>
+            {!isEdit && (
+              <AutosaveIndicator
+                lastSaved={lastSaved}
+                isSaving={isSaving}
+                hasDraft={hasDraft()}
+                onRestore={handleRestoreDraft}
+                onClear={clearDraft}
+              />
+            )}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="client_select" className="label">
-                Seleccionar Cliente *
+              <label className="label">
+                Buscar Cliente *
               </label>
-              <select
-                id="client_select"
-                value={formData.client_phone || ''}
-                onChange={handleClientChange}
-                className="input"
+              <SmartAutocomplete
+                value={clientSearch}
+                onChange={setClientSearch}
+                onSelect={(client) => {
+                  if (client) {
+                    setFormData(prev => ({
+                      ...prev,
+                      client_phone: client.phone,
+                      client_name: client.name
+                    }));
+                    setClientSearch(client.name);
+                  } else {
+                    setFormData(prev => ({
+                      ...prev,
+                      client_phone: null,
+                      client_name: ''
+                    }));
+                  }
+                }}
+                options={clients}
+                placeholder="Escribe nombre o teléfono..."
+                displayField="name"
+                secondaryField="phone"
+                icon={User}
                 required
-              >
-                <option value="">-- Seleccionar cliente --</option>
-                {clients.map(client => (
-                  <option key={client.phone} value={client.phone}>
-                    {client.name} ({client.phone})
-                  </option>
-                ))}
-              </select>
+                minChars={1}
+                maxResults={8}
+              />
               <p className="mt-1 text-xs text-slate-500">
-                Si el cliente no existe, por favor créalo desde el módulo de Clientes primero.
+                Escribe para buscar. Si no existe, créalo desde el módulo de Clientes.
               </p>
             </div>
 
             <div>
-              <label htmlFor="client_name" className="label">
-                Nombre del Cliente
+              <label htmlFor="client_phone" className="label">
+                Teléfono del Cliente
               </label>
               <input
                 type="text"
-                id="client_name"
-                name="client_name"
-                value={formData.client_name}
-                className="input bg-slate-100"
+                id="client_phone"
+                value={formData.client_phone || ''}
+                className="input bg-slate-50"
                 readOnly
                 disabled
+                placeholder="Se autocompleta al seleccionar"
               />
             </div>
             <div>
