@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { 
   TrendingUp, 
+  TrendingDown,
   DollarSign, 
   ShoppingCart, 
   AlertCircle,
@@ -12,30 +13,87 @@ import {
   Target,
   X,
   Eye,
-  FileText
+  FileText,
+  ArrowUp,
+  ArrowDown,
+  Activity
 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, AreaChart, Area } from 'recharts';
 import SalesGauge from '../components/SalesGauge';
 
 const Dashboard = () => {
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [ordersModal, setOrdersModal] = useState({ open: false, title: '', orders: [], loading: false });
+  const [lastUpdate, setLastUpdate] = useState(new Date());
 
-  useEffect(() => {
-    fetchDashboard();
-  }, []);
-
-  const fetchDashboard = async () => {
+  const fetchDashboard = useCallback(async () => {
     try {
       const response = await api.get('/reports/dashboard');
       setDashboard(response.data);
+      setLastUpdate(new Date());
     } catch (error) {
       console.error('Error al cargar dashboard:', error);
       toast.error('Error al cargar los datos del dashboard');
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    fetchDashboard();
+    // Auto-refresh cada 60 segundos
+    const interval = setInterval(fetchDashboard, 60000);
+    return () => clearInterval(interval);
+  }, [fetchDashboard]);
+
+  // Calcular porcentaje de cambio
+  const calcPercentChange = (current, previous) => {
+    if (!previous || previous === 0) return current > 0 ? 100 : 0;
+    return ((current - previous) / previous * 100).toFixed(1);
+  };
+
+  // Componente de indicador de cambio
+  const ChangeIndicator = ({ current, previous, label }) => {
+    const change = calcPercentChange(current, previous);
+    const isPositive = change >= 0;
+    const isZero = change == 0;
+    
+    return (
+      <div className={`flex items-center space-x-1 text-xs ${
+        isZero ? 'text-slate-400' : isPositive ? 'text-emerald-600' : 'text-red-500'
+      }`}>
+        {!isZero && (isPositive ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+        <span className="font-medium">{isPositive && !isZero ? '+' : ''}{change}%</span>
+        <span className="text-slate-400">{label}</span>
+      </div>
+    );
+  };
+
+  // Mini Sparkline Component
+  const MiniSparkline = ({ data, color = "#3b82f6", height = 40 }) => {
+    if (!data || data.length === 0) return null;
+    return (
+      <div className="w-full" style={{ height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id={`gradient-${color.replace('#', '')}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+                <stop offset="100%" stopColor={color} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <Area 
+              type="monotone" 
+              dataKey="amount" 
+              stroke={color} 
+              strokeWidth={1.5}
+              fill={`url(#gradient-${color.replace('#', '')})`}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    );
   };
 
   // Función para cargar pedidos filtrados
@@ -210,11 +268,28 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header con badge Live */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <h2 className="text-xl font-semibold text-slate-900">Resumen de Ventas</h2>
+          <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-full">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span className="text-xs font-medium text-emerald-700">Live</span>
+          </div>
+        </div>
+        <p className="text-xs text-slate-400">
+          Actualizado: {lastUpdate.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}
+        </p>
+      </div>
+
       {/* Stats Cards con Gráficos de Torta */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Ventas Hoy */}
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-2">
             <div>
               <p className="text-sm font-medium text-slate-500">Ventas Hoy</p>
               <p className="mt-1 text-2xl font-semibold text-slate-900 tracking-tight">
@@ -226,6 +301,12 @@ const Dashboard = () => {
               <DollarSign className="w-5 h-5 text-white" strokeWidth={2} />
             </div>
           </div>
+          <ChangeIndicator 
+            current={dashboard?.today?.amount || 0} 
+            previous={dashboard?.yesterday?.amount || 0} 
+            label="vs ayer" 
+          />
+          <MiniSparkline data={dashboard?.sparkline_7days} color="#10b981" height={35} />
           {todayChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={160}>
               <PieChart>
@@ -255,7 +336,7 @@ const Dashboard = () => {
 
         {/* Ventas del Mes */}
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-2">
             <div>
               <p className="text-sm font-medium text-slate-500">Ventas del Mes</p>
               <p className="mt-1 text-2xl font-semibold text-slate-900 tracking-tight">
@@ -267,6 +348,12 @@ const Dashboard = () => {
               <TrendingUp className="w-5 h-5 text-white" strokeWidth={2} />
             </div>
           </div>
+          <ChangeIndicator 
+            current={dashboard?.month?.amount || 0} 
+            previous={dashboard?.last_month?.amount || 0} 
+            label="vs mes anterior" 
+          />
+          <MiniSparkline data={dashboard?.sparkline_30days} color="#3b82f6" height={35} />
           {monthChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={160}>
               <PieChart>
@@ -296,7 +383,7 @@ const Dashboard = () => {
 
         {/* Ventas del Año */}
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-2">
             <div>
               <p className="text-sm font-medium text-slate-500">Ventas del Año</p>
               <p className="mt-1 text-2xl font-semibold text-slate-900 tracking-tight">
@@ -308,6 +395,11 @@ const Dashboard = () => {
               <ShoppingCart className="w-5 h-5 text-white" strokeWidth={2} />
             </div>
           </div>
+          <ChangeIndicator 
+            current={dashboard?.year?.amount || 0} 
+            previous={dashboard?.last_year?.amount || 0} 
+            label="vs año anterior" 
+          />
           {yearChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={160}>
               <PieChart>
@@ -336,11 +428,11 @@ const Dashboard = () => {
         </div>
 
         {/* Pagos Pendientes */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
+        <div className="card border-amber-200 bg-amber-50/30">
+          <div className="flex items-center justify-between mb-2">
             <div>
               <p className="text-sm font-medium text-slate-500">Pagos Pendientes</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900 tracking-tight">
+              <p className="mt-1 text-2xl font-semibold text-amber-600 tracking-tight">
                 Bs. {dashboard?.pending_payments?.amount?.toFixed(2) || '0.00'}
               </p>
               <p className="text-xs text-slate-400 mt-0.5">{dashboard?.pending_payments?.count || 0} pedidos</p>
@@ -349,6 +441,12 @@ const Dashboard = () => {
               <AlertCircle className="w-5 h-5 text-white" strokeWidth={2} />
             </div>
           </div>
+          {dashboard?.pending_payments?.count > 0 && (
+            <div className="flex items-center space-x-1 text-xs text-amber-600 mb-2">
+              <Activity className="w-3 h-3" />
+              <span className="font-medium">Requiere atención</span>
+            </div>
+          )}
           {pendingChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={160}>
               <PieChart>

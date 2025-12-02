@@ -136,6 +136,70 @@ export const getDashboard = async (req, res) => {
       ORDER BY total_amount DESC
     `);
 
+    // === DATOS COMPARATIVOS ===
+    
+    // Ventas de ayer (para comparar con hoy)
+    const yesterdaySales = await pool.query(`
+      SELECT 
+        COUNT(*) as total_orders,
+        COALESCE(SUM(total), 0) as total_amount
+      FROM orders
+      WHERE order_date = CURRENT_DATE - INTERVAL '1 day'
+        AND status != 'cancelado'
+        AND payment_status IN ('pagado', 'parcial')
+    `);
+
+    // Ventas del mes anterior (para comparar con este mes)
+    const lastMonthSales = await pool.query(`
+      SELECT 
+        COUNT(*) as total_orders,
+        COALESCE(SUM(total), 0) as total_amount
+      FROM orders
+      WHERE DATE_TRUNC('month', order_date) = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')
+        AND status != 'cancelado'
+        AND payment_status IN ('pagado', 'parcial')
+    `);
+
+    // Ventas del año anterior (para comparar con este año)
+    const lastYearSales = await pool.query(`
+      SELECT 
+        COUNT(*) as total_orders,
+        COALESCE(SUM(total), 0) as total_amount
+      FROM orders
+      WHERE DATE_TRUNC('year', order_date) = DATE_TRUNC('year', CURRENT_DATE - INTERVAL '1 year')
+        AND status != 'cancelado'
+        AND payment_status IN ('pagado', 'parcial')
+    `);
+
+    // === DATOS PARA SPARKLINES (últimos 7 días) ===
+    const last7DaysSales = await pool.query(`
+      SELECT 
+        order_date::date as date,
+        COUNT(*) as orders,
+        COALESCE(SUM(total), 0) as amount
+      FROM orders
+      WHERE order_date >= CURRENT_DATE - INTERVAL '6 days'
+        AND order_date <= CURRENT_DATE
+        AND status != 'cancelado'
+        AND payment_status IN ('pagado', 'parcial')
+      GROUP BY order_date::date
+      ORDER BY order_date::date ASC
+    `);
+
+    // Últimos 30 días para sparkline del mes
+    const last30DaysSales = await pool.query(`
+      SELECT 
+        order_date::date as date,
+        COALESCE(SUM(total), 0) as amount
+      FROM orders
+      WHERE order_date >= CURRENT_DATE - INTERVAL '29 days'
+        AND order_date <= CURRENT_DATE
+        AND status != 'cancelado'
+        AND payment_status IN ('pagado', 'parcial')
+      GROUP BY order_date::date
+      ORDER BY order_date::date ASC
+    `);
+
     res.json({
       today: {
         orders: parseInt(todaySales.rows[0].total_orders),
@@ -161,6 +225,29 @@ export const getDashboard = async (req, res) => {
         count: parseInt(monthPendingPayments.rows[0].count),
         amount: parseFloat(monthPendingPayments.rows[0].amount)
       },
+      // Datos comparativos
+      yesterday: {
+        orders: parseInt(yesterdaySales.rows[0].total_orders),
+        amount: parseFloat(yesterdaySales.rows[0].total_amount)
+      },
+      last_month: {
+        orders: parseInt(lastMonthSales.rows[0].total_orders),
+        amount: parseFloat(lastMonthSales.rows[0].total_amount)
+      },
+      last_year: {
+        orders: parseInt(lastYearSales.rows[0].total_orders),
+        amount: parseFloat(lastYearSales.rows[0].total_amount)
+      },
+      // Datos para sparklines
+      sparkline_7days: last7DaysSales.rows.map(r => ({
+        date: r.date,
+        orders: parseInt(r.orders),
+        amount: parseFloat(r.amount)
+      })),
+      sparkline_30days: last30DaysSales.rows.map(r => ({
+        date: r.date,
+        amount: parseFloat(r.amount)
+      })),
       recent_orders: recentOrders.rows,
       sales_by_work_type: salesByWorkTypeMonth.rows // Mantener para compatibilidad
     });

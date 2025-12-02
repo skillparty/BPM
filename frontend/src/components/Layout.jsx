@@ -11,15 +11,76 @@ import {
   X,
   Landmark,
   Circle,
-  ChevronRight
+  ChevronRight,
+  Search,
+  Command,
+  Home
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import GlobalSearch from './GlobalSearch';
 
 const Layout = () => {
   const { user, logout, isSuperAdmin, isColaborador } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Cmd/Ctrl + K = Open search
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+      // N = New order (when not in input)
+      if (e.key === 'n' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) && !searchOpen) {
+        e.preventDefault();
+        navigate('/orders/new');
+      }
+      // C = Clients (when not in input)
+      if (e.key === 'c' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) && !searchOpen) {
+        e.preventDefault();
+        navigate('/clients');
+      }
+      // D = Dashboard (when not in input)
+      if (e.key === 'd' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) && !searchOpen) {
+        e.preventDefault();
+        navigate('/dashboard');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [navigate, searchOpen]);
+
+  // Generate breadcrumbs based on current path
+  const getBreadcrumbs = useCallback(() => {
+    const paths = location.pathname.split('/').filter(Boolean);
+    const breadcrumbs = [];
+    
+    const pathNames = {
+      'dashboard': 'Dashboard',
+      'orders': 'Pedidos',
+      'clients': 'Clientes',
+      'products': 'Almacén',
+      'rollos': 'Rollos',
+      'reports': 'Reportes',
+      'bank-config': 'Config. Bancaria',
+      'users': 'Usuarios',
+      'new': 'Nuevo',
+      'edit': 'Editar'
+    };
+
+    paths.forEach((path, index) => {
+      const href = '/' + paths.slice(0, index + 1).join('/');
+      const name = pathNames[path] || (path.match(/^\d+$/) ? `#${path}` : path);
+      breadcrumbs.push({ name, href, isLast: index === paths.length - 1 });
+    });
+
+    return breadcrumbs;
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -157,14 +218,44 @@ const Layout = () => {
             </button>
             
             <div className="flex-1 flex items-center justify-between">
-              <div className="hidden lg:block">
-                <h1 className="text-lg font-semibold text-slate-900">
-                  {navigation.find(item => isActive(item.href))?.name || 'BPM'}
-                </h1>
-              </div>
+              {/* Breadcrumbs */}
+              <nav className="hidden lg:flex items-center space-x-1 text-sm">
+                <Link to="/dashboard" className="text-slate-400 hover:text-slate-600 transition-colors">
+                  <Home className="w-4 h-4" />
+                </Link>
+                {getBreadcrumbs().map((crumb, idx) => (
+                  <div key={crumb.href} className="flex items-center">
+                    <ChevronRight className="w-4 h-4 text-slate-300 mx-1" />
+                    {crumb.isLast ? (
+                      <span className="font-medium text-slate-900">{crumb.name}</span>
+                    ) : (
+                      <Link 
+                        to={crumb.href}
+                        className="text-slate-500 hover:text-slate-700 transition-colors"
+                      >
+                        {crumb.name}
+                      </Link>
+                    )}
+                  </div>
+                ))}
+              </nav>
               
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-slate-500">
+              <div className="flex items-center space-x-3">
+                {/* Global Search Button */}
+                <button
+                  onClick={() => setSearchOpen(true)}
+                  className="flex items-center space-x-2 px-3 py-1.5 text-sm text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                >
+                  <Search className="w-4 h-4" />
+                  <span className="hidden sm:inline">Buscar...</span>
+                  <kbd className="hidden md:inline-flex items-center space-x-0.5 px-1.5 py-0.5 bg-white rounded text-xs text-slate-400 border border-slate-200">
+                    <Command className="w-3 h-3" />
+                    <span>K</span>
+                  </kbd>
+                </button>
+
+                {/* Date */}
+                <span className="hidden md:inline text-sm text-slate-500">
                   {new Date().toLocaleDateString('es-BO', { 
                     weekday: 'long', 
                     day: 'numeric',
@@ -175,6 +266,9 @@ const Layout = () => {
             </div>
           </div>
         </header>
+
+        {/* Global Search Modal */}
+        <GlobalSearch isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
 
         {/* Page content */}
         <main className="p-4 sm:p-6 lg:p-8">
